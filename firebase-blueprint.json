@@ -1,0 +1,34 @@
+{
+  "entities": {
+    "transactions": {
+      "title": "transactions",
+      "description": "Financial debit and credit transaction records",
+      "properties": {
+        "type": { "type": "string", "description": "DEBIT or CREDIT" },
+        "amount": { "type": "number", "description": "Positive amount with 2 decimal precision in INR" },
+        "title": { "type": "string", "description": "Transaction title or description" },
+        "category": { "type": "string", "description": "Transaction category" },
+        "note": { "type": "string", "description": "Optional notes" },
+        "date": { "type": "string", "format": "date-time", "description": "Date transaction occurred" },
+        "source": { "type": "string", "description": "MANUAL or SMS" },
+        "smsHash": { "type": "string", "description": "Unique hash for SMS de-duplication" },
+        "userId": { "type": "string", "description": "Firebase Auth or custom user UID for account isolation" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server creation timestamp" }
+      },
+      "required": ["type", "amount", "title", "category", "date", "source", "createdAt"]
+    },
+    "users": {
+      "title": "users",
+      "description": "Registered user accounts",
+      "properties": {
+        "username": { "type": "string", "description": "User account login username" },
+        "displayName": { "type": "string", "description": "User display name" },
+        "password": { "type": "string", "description": "User password" },
+        "uid": { "type": "string", "description": "Unique user ID" },
+        "email": { "type": "string", "description": "Internal account email" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation date" }
+      },
+      "required": ["username", "password", "uid"]
+    }
+  }
+}

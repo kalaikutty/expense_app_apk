@@ -1,0 +1,694 @@
+import React, { useState, useEffect } from 'react';
+import { Download, Smartphone, X, Sparkles, ShieldCheck, RefreshCw, CircleCheck, CircleAlert, LoaderCircle, Settings, ExternalLink } from 'lucide-react';
+
+interface InstallModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+type BuildState = 'idle' | 'loading' | 'success' | 'failed' | 'in_progress' | 'unknown';
+
+interface ApkBuildStatus {
+  state: BuildState;
+  message: string;
+  lastRunHtmlUrl?: string;
+  lastRunAt?: string;
+  releasePublishedAt?: string;
+}
+
+export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) => {
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstalled, setIsInstalled] = useState<boolean>(false);
+  const [isDownloadingApk, setIsDownloadingApk] = useState<boolean>(false);
+  const [apkStatus, setApkStatus] = useState<string>('');
+  const [showSettings, setShowSettings] = useState<boolean>(false);
+
+  // Helper to ensure valid repo slug and avoid placeholders like expesne_app_git_repo_id
+  const sanitizeRepoSlug = (input?: string | null): string => {
+    if (!input) return 'kalaikutty/remix_expense_tracker';
+    const trimmed = input.trim();
+    if (
+      trimmed === '' ||
+      trimmed.includes('expesne') ||
+      trimmed.includes('placeholder') ||
+      trimmed.includes('git_repo_id') ||
+      !trimmed.includes('/')
+    ) {
+      return 'kalaikutty/remix_expense_tracker';
+    }
+    return trimmed;
+  };
+
+  // Editable Repo and APK URL state
+  const [repoSlug, setRepoSlug] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('expensetracker_github_repo');
+      return sanitizeRepoSlug(saved || import.meta.env.VITE_GITHUB_REPO);
+    } catch {
+      return sanitizeRepoSlug(import.meta.env.VITE_GITHUB_REPO);
+    }
+  });
+
+  const [manualApkUrl, setManualApkUrl] = useState<string>(() => {
+    try {
+      return localStorage.getItem('expensetracker_custom_apk_url') || import.meta.env.VITE_APK_DOWNLOAD_URL || '';
+    } catch {
+      return import.meta.env.VITE_APK_DOWNLOAD_URL || '';
+    }
+  });
+
+  const [githubToken, setGithubToken] = useState<string>(() => {
+    try {
+      return localStorage.getItem('expensetracker_github_token') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  const [buildStatus, setBuildStatus] = useState<ApkBuildStatus>({
+    state: 'idle',
+    message: 'Build status not checked yet.',
+  });
+
+  const cleanRepo = sanitizeRepoSlug(repoSlug);
+  const workflowUrl = `https://github.com/${cleanRepo}/actions/workflows/android-apk.yml`;
+  const actionsTabUrl = `https://github.com/${cleanRepo}/actions`;
+  const repoHomeUrl = `https://github.com/${cleanRepo}`;
+  const fallbackApkUrl = `https://github.com/${cleanRepo}/releases/download/apk-latest/expense-tracker-debug.apk`;
+
+  const getDownloadButtonLabel = () => {
+    if (isDownloadingApk) return 'Fetching Latest APK...';
+    if (manualApkUrl) return 'Download Custom Link (.apk)';
+    if (buildStatus.state === 'loading') return 'Checking Build Status...';
+    if (buildStatus.state === 'in_progress') return 'Build In Progress...';
+    if (buildStatus.state === 'success') return 'Download Latest Built APK (.apk)';
+    return 'Download Latest APK';
+  };
+
+  const handleSaveRepoSettings = (newSlug: string, newUrl: string, newToken: string) => {
+    const validSlug = sanitizeRepoSlug(newSlug);
+    setRepoSlug(validSlug);
+    setManualApkUrl(newUrl.trim());
+    setGithubToken(newToken.trim());
+    try {
+      localStorage.setItem('expensetracker_github_repo', validSlug);
+      localStorage.setItem('expensetracker_custom_apk_url', newUrl.trim());
+      localStorage.setItem('expensetracker_github_token', newToken.trim());
+    } catch {
+      // ignore localStorage errors
+    }
+    setShowSettings(false);
+  };
+
+  const formatDateTime = (value?: string) => {
+    if (!value) return null;
+    try {
+      return new Date(value).toLocaleString();
+    } catch {
+      return value;
+    }
+  };
+
+  const fetchApkBuildStatus = async () => {
+    setBuildStatus({
+      state: 'loading',
+      message: 'Checking latest APK build status from GitHub Actions...',
+    });
+
+    try {
+      const [workflowResp, releaseResp] = await Promise.all([
+        fetch(`https://api.github.com/repos/${repoSlug}/actions/workflows/android-apk.yml/runs?per_page=1`),
+        fetch(`https://api.github.com/repos/${repoSlug}/releases/tags/apk-latest`),
+      ]);
+
+      let lastRun: any = null;
+      let state: BuildState = 'unknown';
+      let message = '';
+
+      if (!workflowResp.ok) {
+        if (workflowResp.status === 404) {
+          message = `No workflow runs found yet for "${repoSlug}". Trigger your first build by clicking "Run Workflow on GitHub".`;
+        } else {
+          message = `Could not query GitHub Actions API (HTTP ${workflowResp.status}).`;
+        }
+      } else {
+        const workflowData = await workflowResp.json();
+        lastRun = workflowData.workflow_runs?.[0];
+
+        if (!lastRun) {
+          message = `No APK build runs recorded yet on GitHub for "${repoSlug}". Trigger the workflow to build the APK.`;
+        } else if (lastRun.status !== 'completed') {
+          state = 'in_progress';
+          message = `Build is currently ${lastRun.status}. Please wait ~2 minutes for it to publish the APK.`;
+        } else if (lastRun.conclusion === 'success') {
+          state = 'success';
+          message = 'Latest APK build succeeded on GitHub Actions! File is published and ready for download.';
+        } else {
+          state = 'failed';
+          message = `Latest APK build failed (${lastRun.conclusion || 'failed'}). Click below to view workflow logs on GitHub.`;
+        }
+      }
+
+      let releasePublishedAt: string | undefined;
+      if (releaseResp.ok) {
+        const releaseData = await releaseResp.json();
+        releasePublishedAt = releaseData.published_at || releaseData.created_at;
+      }
+
+      setBuildStatus({
+        state,
+        message,
+        lastRunHtmlUrl: lastRun?.html_url || workflowUrl,
+        lastRunAt: lastRun?.updated_at || lastRun?.created_at,
+        releasePublishedAt,
+      });
+    } catch (error) {
+      console.error('Failed to fetch APK build status:', error);
+      setBuildStatus({
+        state: 'unknown',
+        message: 'Could not connect to GitHub API. You can still download directly or run the build workflow.',
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone) {
+      setIsInstalled(true);
+    }
+
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    window.addEventListener('appinstalled', () => {
+      setIsInstalled(true);
+      setDeferredPrompt(null);
+    });
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    fetchApkBuildStatus();
+
+    // Auto-poll status every 2 minutes (120,000 ms) as requested
+    const interval = setInterval(() => {
+      fetchApkBuildStatus();
+    }, 120000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [isOpen, repoSlug]);
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      try {
+        deferredPrompt.prompt();
+        const choiceResult = await deferredPrompt.userChoice;
+        if (choiceResult.outcome === 'accepted') {
+          setIsInstalled(true);
+        }
+        setDeferredPrompt(null);
+      } catch (err) {
+        console.error('PWA Install error:', err);
+      }
+    } else {
+      alert(
+        '📱 How to install on Android Mobile (WebAPK):\n\n' +
+        '1. Tap the 3 dots (⋮) menu in Chrome at top-right.\n' +
+        '2. Select "Install app" or "Add to Home screen".\n' +
+        '3. Chrome will automatically package & install the official Android WebAPK on your phone!'
+      );
+    }
+  };
+
+  const triggerFileDownload = (url: string) => {
+    try {
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.setAttribute('download', 'expense-tracker-debug.apk');
+        a.target = '_self';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } else {
+        const a = document.createElement('a');
+        a.href = url;
+        a.setAttribute('download', 'expense-tracker-debug.apk');
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+    } catch {
+      window.location.href = url;
+    }
+  };
+
+  const handleDownloadApk = async () => {
+    setIsDownloadingApk(true);
+    setApkStatus('🔍 Resolving latest APK package from GitHub releases...');
+
+    const directBinaryUrl = `https://github.com/${cleanRepo}/releases/download/apk-latest/expense-tracker-debug.apk`;
+
+    if (manualApkUrl.trim()) {
+      setApkStatus('✓ Downloading from custom APK link...');
+      triggerFileDownload(manualApkUrl.trim());
+      setTimeout(() => setIsDownloadingApk(false), 1500);
+      return;
+    }
+
+    try {
+      const headers: Record<string, string> = {
+        Accept: 'application/vnd.github+json',
+      };
+      if (githubToken.trim()) {
+        headers.Authorization = `Bearer ${githubToken.trim()}`;
+      }
+
+      let resolvedUrl: string | null = null;
+      let apkFileName = 'expense-tracker-debug.apk';
+
+      // 1. Check apk-latest release tag first
+      const tagResp = await fetch(`https://api.github.com/repos/${cleanRepo}/releases/tags/apk-latest`, { headers }).catch(() => null);
+      if (tagResp && tagResp.ok) {
+        const tagData = await tagResp.json();
+        const apkAsset = (tagData.assets || []).find((asset: any) =>
+          typeof asset.name === 'string' && asset.name.toLowerCase().endsWith('.apk')
+        );
+        if (apkAsset?.browser_download_url) {
+          resolvedUrl = apkAsset.browser_download_url;
+          apkFileName = apkAsset.name || apkFileName;
+        }
+      }
+
+      // 2. Fallback to latest release
+      if (!resolvedUrl) {
+        const latestResp = await fetch(`https://api.github.com/repos/${cleanRepo}/releases/latest`, { headers }).catch(() => null);
+        if (latestResp && latestResp.ok) {
+          const latestData = await latestResp.json();
+          const apkAsset = (latestData.assets || []).find((asset: any) =>
+            typeof asset.name === 'string' && asset.name.toLowerCase().endsWith('.apk')
+          );
+          if (apkAsset?.browser_download_url) {
+            resolvedUrl = apkAsset.browser_download_url;
+            apkFileName = apkAsset.name || apkFileName;
+          }
+        }
+      }
+
+      // 3. Fallback to list of releases
+      if (!resolvedUrl) {
+        const releasesResp = await fetch(`https://api.github.com/repos/${cleanRepo}/releases?per_page=5`, { headers }).catch(() => null);
+        if (releasesResp && releasesResp.ok) {
+          const releasesData = await releasesResp.json();
+          if (Array.isArray(releasesData)) {
+            for (const rel of releasesData) {
+              const apkAsset = (rel.assets || []).find((asset: any) =>
+                typeof asset.name === 'string' && asset.name.toLowerCase().endsWith('.apk')
+              );
+              if (apkAsset?.browser_download_url) {
+                resolvedUrl = apkAsset.browser_download_url;
+                apkFileName = apkAsset.name || apkFileName;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      const finalUrl = resolvedUrl || directBinaryUrl;
+      setApkStatus(`✓ Downloading ${apkFileName}... Check browser downloads.`);
+      triggerFileDownload(finalUrl);
+    } catch (err) {
+      console.error('Download resolution error:', err);
+      setApkStatus('✓ Downloading APK package directly...');
+      triggerFileDownload(directBinaryUrl);
+    } finally {
+      setTimeout(() => setIsDownloadingApk(false), 1500);
+    }
+  };
+
+  const handleBuildFreshApk = async () => {
+    setApkStatus('Checking build status on GitHub Actions...');
+
+    let token = githubToken.trim();
+    if (!token) {
+      try {
+        token = localStorage.getItem('expensetracker_github_token') || '';
+      } catch {
+        // ignore
+      }
+    }
+
+    // 1. Check if a build is ALREADY running
+    try {
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const checkRunsResp = await fetch(
+        `https://api.github.com/repos/${cleanRepo}/actions/workflows/android-apk.yml/runs?per_page=3`,
+        { headers }
+      ).catch(() => null);
+
+      if (checkRunsResp && checkRunsResp.ok) {
+        const checkData = await checkRunsResp.json();
+        const latestRun = checkData.workflow_runs?.[0];
+
+        if (latestRun && latestRun.status !== 'completed') {
+          const runNum = latestRun.run_number ? `#${latestRun.run_number}` : '';
+          setApkStatus(`🚀 Fresh APK Build ${runNum} is ALREADY running on GitHub Actions! Takes ~2 minutes.`);
+          setBuildStatus({
+            state: 'in_progress',
+            message: `Build ${runNum} is currently ${latestRun.status}. Auto-refreshing status every 2 mins...`,
+            lastRunHtmlUrl: latestRun.html_url || workflowUrl,
+            lastRunAt: latestRun.updated_at || latestRun.created_at,
+          });
+          return;
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    if (token) {
+      try {
+        setApkStatus('Sending automated build trigger to GitHub...');
+        let targetBranch = 'main';
+
+        try {
+          const repoInfoResp = await fetch(`https://api.github.com/repos/${cleanRepo}`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: 'application/vnd.github+json',
+              'X-GitHub-Api-Version': '2022-11-28',
+            },
+          }).catch(() => null);
+
+          if (repoInfoResp && repoInfoResp.ok) {
+            const repoData = await repoInfoResp.json();
+            if (repoData.default_branch) {
+              targetBranch = repoData.default_branch;
+            }
+          }
+        } catch {
+          // fallback
+        }
+
+        let resp = await fetch(
+          `https://api.github.com/repos/${cleanRepo}/actions/workflows/android-apk.yml/dispatches`,
+          {
+            method: 'POST',
+            headers: {
+              Accept: 'application/vnd.github+json',
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+              'X-GitHub-Api-Version': '2022-11-28',
+            },
+            body: JSON.stringify({ ref: targetBranch }),
+          }
+        );
+
+        // If branch ref failed (e.g. 422), try alternative branch ('master' vs 'main')
+        if (resp.status === 422) {
+          const altBranch = targetBranch === 'main' ? 'master' : 'main';
+          resp = await fetch(
+            `https://api.github.com/repos/${cleanRepo}/actions/workflows/android-apk.yml/dispatches`,
+            {
+              method: 'POST',
+              headers: {
+                Accept: 'application/vnd.github+json',
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                'X-GitHub-Api-Version': '2022-11-28',
+              },
+              body: JSON.stringify({ ref: altBranch }),
+            }
+          );
+        }
+
+        if (resp.status === 204 || resp.status === 202 || resp.ok) {
+          setApkStatus('🚀 Fresh APK Build launched on GitHub Actions! Takes ~2 minutes.');
+          setBuildStatus((prev) => ({
+            ...prev,
+            state: 'in_progress',
+            message: 'Automated APK build launched successfully on GitHub Actions (~2 min). Auto-refreshing...',
+          }));
+          setTimeout(fetchApkBuildStatus, 4000);
+          return; // SUCCESS - exit cleanly without opening external window!
+        } else if (resp.status === 401 || resp.status === 403) {
+          setApkStatus('⚠️ Token unauthorized or missing "workflow" scope. Check settings above.');
+          setShowSettings(true);
+          return;
+        } else {
+          setApkStatus(`⚠️ Could not trigger build via API (HTTP ${resp.status}). Opening GitHub workflow page...`);
+        }
+      } catch (err) {
+        console.warn('API dispatch error:', err);
+        setApkStatus('Could not dispatch via API. Opening GitHub Actions page...');
+      }
+    } else {
+      setShowSettings(true);
+      setApkStatus('💡 Save a GitHub Personal Access Token in settings above for 1-click automated builds.');
+    }
+
+    // Only open workflow page if token is missing or API dispatch failed
+    window.open(workflowUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/80 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-3xl max-w-xl w-full p-5 sm:p-6 shadow-2xl border border-slate-200 dark:border-slate-800 relative overflow-hidden flex flex-col max-h-[92vh]">
+        {/* Background glow */}
+        <div className="absolute -top-24 -right-24 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="absolute top-5 right-5 p-2 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* Header */}
+        <div className="flex items-center space-x-3 mb-4 shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-bold text-xl shadow-lg shadow-indigo-600/30">
+            ₹
+          </div>
+          <div>
+            <div className="flex items-center space-x-2">
+              <h3 className="text-xl font-bold tracking-tight">Install Expense Tracker</h3>
+              <span className="text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                Android APK & PWA
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Native Android Package & Standalone Web App
+            </p>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+          {/* Option 1: Standalone PWA Installation Card */}
+          <div className="bg-gradient-to-r from-indigo-500/10 via-slate-800/40 to-slate-800/40 border border-indigo-500/30 rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-bold text-sm text-indigo-950 dark:text-indigo-100 flex items-center space-x-2">
+                <Smartphone className="w-4 h-4 text-indigo-500" />
+                <span>1. Install Standalone Web App (PWA)</span>
+              </span>
+              <span className="text-[10px] font-bold bg-indigo-600 text-white px-2 py-0.5 rounded-full">
+                Fast WebApp
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300 mb-3 leading-relaxed">
+              Installs Expense Tracker as a lightweight, fast standalone Progressive Web App directly to your home screen.
+            </p>
+            <button
+              onClick={handleInstallClick}
+              className="w-full flex items-center justify-center space-x-2 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-indigo-600/20 transition text-xs cursor-pointer"
+            >
+              <Download className="w-4 h-4" />
+              <span>{deferredPrompt ? 'Install Standalone Web App Now' : 'Add Web App to Home Screen'}</span>
+            </button>
+          </div>
+
+          {/* Option 2: Native Android APK Package Download & GitHub Workflow */}
+          <div className="bg-gradient-to-r from-emerald-500/10 via-slate-800/40 to-slate-800/40 border border-emerald-500/30 rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-bold text-sm text-emerald-950 dark:text-emerald-100 flex items-center space-x-2">
+                <Sparkles className="w-4 h-4 text-emerald-500" />
+                <span>2. Download Android APK (.apk)</span>
+              </span>
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center space-x-1 underline"
+                title="Configure GitHub Repository or direct download URL"
+              >
+                <Settings className="w-3.5 h-3.5" />
+                <span>Repo Settings</span>
+              </button>
+            </div>
+
+            {/* Target Repo & Settings line */}
+            <div className="mb-3 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+              <span className="text-[11px]">
+                Repo: <strong className="text-slate-700 dark:text-slate-200 font-mono">{cleanRepo}</strong>
+              </span>
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline flex items-center space-x-1"
+                title="Configure GitHub Repository or direct download URL"
+              >
+                <Settings className="w-3 h-3" />
+                <span>Change Repo</span>
+              </button>
+            </div>
+
+            {/* Optional Settings Drawer */}
+            {showSettings && (
+              <div className="mb-3 p-3 bg-slate-100 dark:bg-slate-800 rounded-xl space-y-2 text-xs border border-slate-200 dark:border-slate-700 animate-fadeIn">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                    GitHub Repository (owner/repo):
+                  </label>
+                  <input
+                    type="text"
+                    value={repoSlug}
+                    onChange={(e) => setRepoSlug(e.target.value)}
+                    placeholder="e.g. owner/remix_expense_tracker"
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                    Direct Custom APK Download URL (Optional):
+                  </label>
+                  <input
+                    type="text"
+                    value={manualApkUrl}
+                    onChange={(e) => setManualApkUrl(e.target.value)}
+                    placeholder="https://.../my-app.apk"
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                    GitHub Access Token for 1-click Automated Builds (Optional):
+                  </label>
+                  <input
+                    type="password"
+                    value={githubToken}
+                    onChange={(e) => setGithubToken(e.target.value)}
+                    placeholder="ghp_... or github_pat_..."
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-mono"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    Optional: Save token to trigger builds in 1 click without leaving app.
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleSaveRepoSettings(repoSlug, manualApkUrl, githubToken)}
+                  className="px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 cursor-pointer"
+                >
+                  Save Settings
+                </button>
+              </div>
+            )}
+
+            {/* Status Card */}
+            <div className="mb-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/70 p-3 text-xs space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 font-semibold text-slate-700 dark:text-slate-200">
+                  {buildStatus.state === 'success' ? (
+                    <CircleCheck className="w-4 h-4 text-emerald-500" />
+                  ) : buildStatus.state === 'failed' ? (
+                    <CircleAlert className="w-4 h-4 text-rose-500" />
+                  ) : buildStatus.state === 'loading' || buildStatus.state === 'in_progress' ? (
+                    <LoaderCircle className="w-4 h-4 text-indigo-500 animate-spin" />
+                  ) : (
+                    <CircleAlert className="w-4 h-4 text-amber-500" />
+                  )}
+                  <span>APK Build Status</span>
+                </div>
+                <button
+                  onClick={fetchApkBuildStatus}
+                  className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center gap-1 cursor-pointer"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Refresh</span>
+                </button>
+              </div>
+
+              <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">{buildStatus.message}</p>
+
+              {buildStatus.lastRunAt && (
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Last workflow update: {formatDateTime(buildStatus.lastRunAt)}
+                </p>
+              )}
+
+              {buildStatus.releasePublishedAt && (
+                <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                  ✓ APK Release Published: {formatDateTime(buildStatus.releasePublishedAt)}
+                </p>
+              )}
+            </div>
+
+            {/* Exactly 2 Options */}
+            <div className="space-y-2.5">
+              {/* Option 1: Download Latest APK */}
+              <button
+                onClick={handleDownloadApk}
+                disabled={isDownloadingApk}
+                className="w-full flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-emerald-600/20 transition text-xs cursor-pointer disabled:opacity-50"
+              >
+                <Download className="w-4 h-4" />
+                <span>Download Latest APK</span>
+              </button>
+
+              {/* Option 2: Build Fresh APK */}
+              <button
+                onClick={handleBuildFreshApk}
+                className="w-full flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-200 font-semibold py-3 px-4 rounded-xl border border-slate-700 transition text-xs cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-indigo-400" />
+                <span>Build Fresh APK</span>
+              </button>
+            </div>
+
+            {apkStatus && (
+              <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">{apkStatus}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 shrink-0">
+          <span className="flex items-center space-x-1">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Verified Android Capacitor Package</span>
+          </span>
+          <button
+            onClick={onClose}
+            className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
