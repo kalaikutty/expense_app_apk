@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileSpreadsheet, Download, SlidersHorizontal, LogIn, User, Moon, Sun } from 'lucide-react';
+import { FileSpreadsheet, Download, SlidersHorizontal, LogIn, User, Moon, Sun, MessageSquare, Smartphone, Monitor } from 'lucide-react';
 
 interface NavbarProps {
   isFirestoreConnected: boolean;
@@ -10,6 +10,10 @@ interface NavbarProps {
   currentUser: any;
   onOpenAuthModal: () => void;
   onOpenDrawer: () => void;
+  isNativeApk?: boolean;
+  onOpenSmsModal?: () => void;
+  viewMode?: 'web' | 'android' | 'dual';
+  onChangeViewMode?: (mode: 'web' | 'android' | 'dual') => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -21,6 +25,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
   onOpenAuthModal,
   onOpenDrawer,
+  isNativeApk = false,
+  onOpenSmsModal,
+  viewMode = 'web',
+  onChangeViewMode,
 }) => {
   const getUserLabel = () => {
     if (!currentUser) return null;
@@ -60,6 +68,29 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Action Icons Bar */}
           <div className="flex items-center space-x-2 sm:space-x-3">
+            {/* Dedicated SMS Sync Trigger Button (Enabled in APK, Disabled in Web) */}
+            {onOpenSmsModal && (
+              <button
+                onClick={onOpenSmsModal}
+                disabled={!isNativeApk}
+                className={`p-2 sm:px-3 sm:py-2 flex items-center space-x-1.5 font-bold rounded-xl border transition active:scale-95 ${
+                  isNativeApk
+                    ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-400/40 shadow-md shadow-amber-500/20 cursor-pointer animate-pulse'
+                    : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-300 dark:border-slate-700 opacity-60 cursor-not-allowed'
+                }`}
+                title={
+                  isNativeApk
+                    ? 'Scan & Parse Bank SMS (Android APK)'
+                    : 'SMS Sync trigger (Requires Android APK)'
+                }
+              >
+                <MessageSquare className={`w-5 h-5 sm:w-4 sm:h-4 ${isNativeApk ? 'text-white fill-white' : 'text-slate-400 dark:text-slate-500'}`} />
+                <span className="hidden sm:inline text-xs">
+                  {isNativeApk ? 'Sync Bank SMS' : 'SMS Sync (APK Only)'}
+                </span>
+              </button>
+            )}
+
             {/* User Chip if Logged in */}
             {currentUser ? (
               <div className={`hidden md:flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border text-xs ${isDark ? 'bg-slate-800/80 border-slate-700/70' : 'bg-slate-100 border-slate-200'}`}>

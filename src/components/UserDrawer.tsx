@@ -11,6 +11,7 @@ import {
   UserCheck,
   RefreshCw,
   FileSpreadsheet,
+  MessageSquare,
 } from 'lucide-react';
 import { Transaction } from '../types';
 import { generateExcelCsv, downloadExcelFile, parseExcelCsvText } from '../utils/excelHelper';
@@ -29,6 +30,8 @@ interface UserDrawerProps {
   onImportTransactions: (items: any[]) => Promise<number>;
   onOpenAuthModal: () => void;
   onOpenExcelModal: () => void;
+  onOpenSmsModal?: () => void;
+  isNativeApk?: boolean;
 }
 
 export const UserDrawer: React.FC<UserDrawerProps> = ({
@@ -40,6 +43,8 @@ export const UserDrawer: React.FC<UserDrawerProps> = ({
   onImportTransactions,
   onOpenAuthModal,
   onOpenExcelModal,
+  onOpenSmsModal,
+  isNativeApk = false,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [importMessage, setImportMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -246,6 +251,42 @@ export const UserDrawer: React.FC<UserDrawerProps> = ({
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 px-1">
               Data Controls
             </h3>
+
+            {/* Bank SMS Auto-Parser */}
+            {onOpenSmsModal && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (isNativeApk) {
+                    onClose();
+                    onOpenSmsModal();
+                  }
+                }}
+                disabled={!isNativeApk}
+                className={`w-full flex items-center justify-between p-3.5 rounded-2xl border transition ${
+                  isNativeApk
+                    ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 border-amber-500/30 cursor-pointer active:scale-[0.98]'
+                    : 'bg-slate-800/40 text-slate-500 border-slate-700/50 opacity-60 cursor-not-allowed'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <div className={`p-2 rounded-xl ${isNativeApk ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-700/50 text-slate-500'}`}>
+                    <MessageSquare className="w-4 h-4" />
+                  </div>
+                  <div className="text-left">
+                    <p className={`text-sm font-bold flex items-center gap-1.5 ${isNativeApk ? 'text-amber-200' : 'text-slate-400'}`}>
+                      <span>Sync Bank SMS</span>
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded uppercase font-extrabold ${isNativeApk ? 'bg-amber-400/20 text-amber-300' : 'bg-slate-700 text-slate-500'}`}>
+                        {isNativeApk ? 'APK' : 'APK Only'}
+                      </span>
+                    </p>
+                    <p className={`text-xs ${isNativeApk ? 'text-amber-300/80' : 'text-slate-500'}`}>
+                      {isNativeApk ? 'Scan & auto-import bank SMS entries' : 'SMS trigger disabled on Web'}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            )}
 
             {/* 1. Open Interactive Excel Sheet Viewer */}
             <button

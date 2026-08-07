@@ -11,16 +11,20 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
+import { Capacitor } from '@capacitor/core';
 import { db, auth } from './firebase';
 import { Transaction, PeriodType, TransactionType } from './types';
 import { Navbar } from './components/Navbar';
 import { WebApp } from './components/WebApp';
+import { AndroidApp } from './components/AndroidApp';
+import { DualView } from './components/DualView';
 import { WelcomeLanding } from './components/WelcomeLanding';
 import { TransactionModal } from './components/TransactionModal';
 import { ExcelViewerModal } from './components/ExcelViewerModal';
 import { InstallModal } from './components/InstallModal';
 import { AuthModal } from './components/AuthModal';
 import { UserDrawer } from './components/UserDrawer';
+import { SmsModal } from './components/SmsModal';
 import { ExcelRow } from './utils/excelHelper';
 
 interface CustomUser {
@@ -123,6 +127,16 @@ export default function App() {
   const [isInstallModalOpen, setIsInstallModalOpen] = useState<boolean>(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [isUserDrawerOpen, setIsUserDrawerOpen] = useState<boolean>(false);
+  const [isSmsModalOpen, setIsSmsModalOpen] = useState<boolean>(false);
+
+  // Platform Detection
+  const isNativeApk = useMemo(() => {
+    try {
+      return Capacitor.isNativePlatform();
+    } catch {
+      return false;
+    }
+  }, []);
 
   // Effective logged in user
   const effectiveUser = useMemo(() => {
@@ -388,6 +402,8 @@ export default function App() {
         currentUser={effectiveUser}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
         onOpenDrawer={() => setIsUserDrawerOpen(true)}
+        isNativeApk={isNativeApk}
+        onOpenSmsModal={() => setIsSmsModalOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -399,20 +415,37 @@ export default function App() {
           </div>
         ) : effectiveUser ? (
           /* User Dashboard View (Logged In) */
-          <WebApp
-            transactions={transactions}
-            onOpenAddModal={() => {
-              setEditingTransaction(null);
-              setIsAddModalOpen(true);
-            }}
-            onEditTransaction={handleOpenEdit}
-            onDeleteTransaction={handleDeleteTransaction}
-            currentDate={currentDate}
-            setCurrentDate={setCurrentDate}
-            selectedPeriod={selectedPeriod}
-            setSelectedPeriod={setSelectedPeriod}
-            onOpenExcelModal={() => setIsExcelModalOpen(true)}
-          />
+          isNativeApk ? (
+            <AndroidApp
+              transactions={transactions}
+              onOpenAddModal={() => {
+                setEditingTransaction(null);
+                setIsAddModalOpen(true);
+              }}
+              onEditTransaction={handleOpenEdit}
+              onDeleteTransaction={handleDeleteTransaction}
+              currentDate={currentDate}
+              setCurrentDate={setCurrentDate}
+              selectedPeriod={selectedPeriod}
+              setSelectedPeriod={setSelectedPeriod}
+              onOpenSmsModal={() => setIsSmsModalOpen(true)}
+            />
+          ) : (
+            <WebApp
+              transactions={transactions}
+              onOpenAddModal={() => {
+                setEditingTransaction(null);
+                setIsAddModalOpen(true);
+              }}
+              onEditTransaction={handleOpenEdit}
+              onDeleteTransaction={handleDeleteTransaction}
+              currentDate={currentDate}
+              setCurrentDate={setCurrentDate}
+              selectedPeriod={selectedPeriod}
+              setSelectedPeriod={setSelectedPeriod}
+              onOpenExcelModal={() => setIsExcelModalOpen(true)}
+            />
+          )
         ) : (
           /* Welcome Landing Page (Unauthenticated) */
           <WelcomeLanding
@@ -432,6 +465,15 @@ export default function App() {
         onImportTransactions={handleImportBulkTransactions}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
         onOpenExcelModal={() => setIsExcelModalOpen(true)}
+        onOpenSmsModal={() => setIsSmsModalOpen(true)}
+        isNativeApk={isNativeApk}
+      />
+
+      {/* Bank SMS Auto-Parser Modal (APK Feature) */}
+      <SmsModal
+        isOpen={isSmsModalOpen}
+        onClose={() => setIsSmsModalOpen(false)}
+        onAddTransactions={handleImportBulkTransactions}
       />
 
       {/* Add / Edit Transaction Modal */}
