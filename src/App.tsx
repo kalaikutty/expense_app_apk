@@ -166,6 +166,7 @@ export default function App() {
             note: data.note || null,
             date: data.date || new Date().toISOString(),
             source: data.source || 'MANUAL',
+            status: data.status || 'confirmed',
             userId: data.userId || undefined,
             createdAt: data.createdAt ? data.createdAt.toString() : new Date().toISOString(),
           };
@@ -229,6 +230,8 @@ export default function App() {
       date: data.date,
       note: data.note || null,
       source: data.source || 'MANUAL',
+      // Manual add/edit through the modal counts as user-reviewed
+      status: 'confirmed',
       userId: effectiveUser.uid,
     };
 
@@ -281,6 +284,8 @@ export default function App() {
         category: item.category || 'Other',
         date: item.date || new Date().toISOString(),
         source: item.source || 'manual',
+        // SMS-parsed entries start pending so they can be reviewed in expense_tracker
+        status: item.source === 'sms' ? 'pending' : 'confirmed',
         note: item.note || null,
         userId: effectiveUser.uid,
         createdAt: serverTimestamp(),
@@ -355,6 +360,7 @@ export default function App() {
         date: row.date.length === 10 ? `${row.date}T12:00:00.000Z` : row.date,
         note: row.note || null,
         source: 'EXCEL',
+        status: 'confirmed',
         userId: effectiveUser.uid,
       };
 

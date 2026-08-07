@@ -13,6 +13,9 @@ export type TransactionSource =
 
 export type PeriodType = 'Day' | 'Month' | 'Year';
 
+// 'pending' = awaiting review (e.g. SMS-parsed in expense_app_apk, not yet reviewed in expense_tracker)
+export type TransactionStatus = 'pending' | 'confirmed';
+
 export interface Transaction {
   id: string;
   type: TransactionType;
@@ -22,6 +25,7 @@ export interface Transaction {
   note?: string | null;
   date: string; // ISO string
   source: TransactionSource;
+  status?: TransactionStatus;
   userId?: string;
   createdAt: string;
 }
@@ -34,5 +38,6 @@ export interface NewTransaction {
   note?: string;
   date: string;
   source: TransactionSource;
+  status?: TransactionStatus;
   userId?: string;
 }
