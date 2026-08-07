@@ -150,7 +150,8 @@ export default function App() {
   // Real-time Firestore snapshot listener
   useEffect(() => {
     setIsLoading(true);
-    const q = query(collection(db, 'transactions'), orderBy('date', 'desc'));
+    // Own scoped collection: SMS parsing/refresh here never touches expense_tracker's ledger
+    const q = query(collection(db, 'apk_transactions'), orderBy('date', 'desc'));
 
     const unsubscribe = onSnapshot(
       q,
@@ -177,7 +178,7 @@ export default function App() {
         setIsLoading(false);
       },
       (error) => {
-        handleFirestoreError(error, OperationType.LIST, 'transactions');
+        handleFirestoreError(error, OperationType.LIST, 'apk_transactions');
         setIsConnected(false);
         setIsLoading(false);
       }
@@ -215,7 +216,7 @@ export default function App() {
     category: string;
     date: string;
     note?: string;
-    source?: 'MANUAL' | 'EXCEL' | 'IMPORT';
+    source?: any;
   }) => {
     if (!effectiveUser) {
       setIsAuthModalOpen(true);
@@ -229,7 +230,7 @@ export default function App() {
       category: data.category,
       date: data.date,
       note: data.note || null,
-      source: data.source || 'MANUAL',
+      source: data.source || 'manual',
       // Manual add/edit through the modal counts as user-reviewed
       status: 'confirmed',
       userId: effectiveUser.uid,
@@ -238,26 +239,26 @@ export default function App() {
     try {
       if (data.id) {
         // Update existing document
-        const docRef = doc(db, 'transactions', data.id);
+        const docRef = doc(db, 'apk_transactions', data.id);
         await updateDoc(docRef, payload);
       } else {
         // Create new document
-        await addDoc(collection(db, 'transactions'), {
+        await addDoc(collection(db, 'apk_transactions'), {
           ...payload,
           createdAt: serverTimestamp(),
         });
       }
     } catch (err) {
-      handleFirestoreError(err, data.id ? OperationType.UPDATE : OperationType.CREATE, 'transactions');
+      handleFirestoreError(err, data.id ? OperationType.UPDATE : OperationType.CREATE, 'apk_transactions');
     }
   };
 
   // Handle Delete Transaction
   const handleDeleteTransaction = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'transactions', id));
+      await deleteDoc(doc(db, 'apk_transactions', id));
     } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `transactions/${id}`);
+      handleFirestoreError(err, OperationType.DELETE, `apk_transactions/${id}`);
     }
   };
 
@@ -284,13 +285,14 @@ export default function App() {
         category: item.category || 'Other',
         date: item.date || new Date().toISOString(),
         source: item.source || 'manual',
-        // SMS-parsed entries start pending so they can be reviewed in expense_tracker
+        // SMS-parsed entries stay pending in this app's own staging area until
+        // the user explicitly imports them from expense_tracker's "Import SMS" screen
         status: item.source === 'sms' ? 'pending' : 'confirmed',
         note: item.note || null,
         userId: effectiveUser.uid,
         createdAt: serverTimestamp(),
       };
-      await addDoc(collection(db, 'transactions'), payload);
+      await addDoc(collection(db, 'apk_transactions'), payload);
       imported++;
     }
     return imported;
@@ -366,11 +368,11 @@ export default function App() {
 
       if (row.id && !row.id.startsWith('temp-')) {
         // Update existing document
-        const docRef = doc(db, 'transactions', row.id);
+        const docRef = doc(db, 'apk_transactions', row.id);
         await updateDoc(docRef, payload);
       } else {
         // Create new document
-        await addDoc(collection(db, 'transactions'), {
+        await addDoc(collection(db, 'apk_transactions'), {
           ...payload,
           createdAt: serverTimestamp(),
         });
@@ -420,7 +422,7 @@ export default function App() {
     }
 
     try {
-      await Promise.all(transactions.map((t) => deleteDoc(doc(db, 'transactions', t.id))));
+      await Promise.all(transactions.map((t) => deleteDoc(doc(db, 'apk_transactions', t.id))));
       await deleteDoc(doc(db, 'users', usernameTag.toLowerCase()));
 
       if (auth.currentUser) {

@@ -1,8 +1,8 @@
 {
   "entities": {
-    "transactions": {
-      "title": "transactions",
-      "description": "Financial debit and credit transaction records",
+    "apk_transactions": {
+      "title": "apk_transactions",
+      "description": "expense_app_apk's own ledger, plus SMS-parsed entries staged with status='pending' until reviewed and imported from expense_tracker's Import SMS screen. Not shared/synced with expense_tracker's 'transactions' collection.",
       "properties": {
         "type": { "type": "string", "description": "DEBIT or CREDIT" },
         "amount": { "type": "number", "description": "Positive amount with 2 decimal precision in INR" },
@@ -10,7 +10,8 @@
         "category": { "type": "string", "description": "Transaction category" },
         "note": { "type": "string", "description": "Optional notes" },
         "date": { "type": "string", "format": "date-time", "description": "Date transaction occurred" },
-        "source": { "type": "string", "description": "MANUAL or SMS" },
+        "source": { "type": "string", "description": "manual, sms, excel, email, or import" },
+        "status": { "type": "string", "description": "pending (awaiting review in expense_tracker) or confirmed" },
         "smsHash": { "type": "string", "description": "Unique hash for SMS de-duplication" },
         "userId": { "type": "string", "description": "Firebase Auth or custom user UID for account isolation" },
         "createdAt": { "type": "string", "format": "date-time", "description": "Server creation timestamp" }

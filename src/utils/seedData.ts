@@ -89,7 +89,7 @@ export async function seedSampleTransactions(userId?: string): Promise<number> {
     if (userId) {
       payload.userId = userId;
     }
-    await addDoc(collection(db, 'transactions'), payload);
+    await addDoc(collection(db, 'apk_transactions'), payload);
     addedCount++;
   }
 

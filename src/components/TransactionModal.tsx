@@ -31,6 +31,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [amount, setAmount] = useState<string>('');
   const [title, setTitle] = useState<string>('');
   const [category, setCategory] = useState<string>(EXPENSE_CATEGORIES[0]);
+  const [source, setSource] = useState<TransactionSource>('manual');
   const [dateStr, setDateStr] = useState<string>('');
   const [note, setNote] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -42,6 +43,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       setAmount(editTransaction.amount.toString());
       setTitle(editTransaction.title);
       setCategory(editTransaction.category);
+      setSource(editTransaction.source || 'manual');
       setNote(editTransaction.note || '');
       
       const d = new Date(editTransaction.date);
@@ -55,6 +57,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       setAmount('');
       setTitle('');
       setCategory(EXPENSE_CATEGORIES[0]);
+      setSource('manual');
       setNote('');
       const initDate = defaultDate || new Date();
       setDateStr(initDate.toISOString().slice(0, 16));
@@ -99,7 +102,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         category,
         date: new Date(dateStr).toISOString(),
         note: note.trim() || undefined,
-        source: editTransaction ? editTransaction.source : 'manual',
+        source,
       });
       onClose();
     } catch (err: any) {
@@ -214,6 +217,23 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                   {cat}
                 </option>
               ))}
+            </select>
+          </div>
+
+          {/* Source Tag */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+              Source
+            </label>
+            <select
+              value={source}
+              onChange={(e) => setSource(e.target.value as TransactionSource)}
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50/50"
+            >
+              <option value="manual">Manual</option>
+              <option value="sms">SMS</option>
+              <option value="excel">Excel</option>
+              <option value="email">Email</option>
             </select>
           </div>
 
