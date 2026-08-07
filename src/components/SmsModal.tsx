@@ -18,45 +18,20 @@ import {
   Trash2,
 } from 'lucide-react';
 import { MessageReader } from '@solimanware/capacitor-sms-reader';
+import { Transaction } from '../types';
 import {
   ParsedSmsEntry,
   parseBankSms,
   CATEGORIES,
 } from '../utils/smsParser';
-
-const PROCESSED_SMS_KEY = 'expensetracker_processed_sms_hashes';
-
-const getProcessedSmsHashes = (): Set<string> => {
-  try {
-    const raw = localStorage.getItem(PROCESSED_SMS_KEY);
-    if (raw) {
-      return new Set(JSON.parse(raw));
-    }
-  } catch {
-    // ignore
-  }
-  return new Set();
-};
-
-const saveProcessedSmsHashes = (newHashes: string[]) => {
-  try {
-    const existing = getProcessedSmsHashes();
-    newHashes.forEach((h) => existing.add(h));
-    localStorage.setItem(PROCESSED_SMS_KEY, JSON.stringify(Array.from(existing)));
-  } catch {
-    // ignore
-  }
-};
-
-const getSmsHash = (body: string, refNo?: string, dateStr?: string, amount?: number) => {
-  const str = `${body.trim()}_${refNo || ''}_${dateStr || ''}_${amount || ''}`;
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash << 5) - hash + str.charCodeAt(i);
-    hash |= 0;
-  }
-  return `sms_hash_${hash}`;
-};
+// Shared with the background sync job (useHourlySync) so a message added/skipped via one
+// path (manual scan or automatic 10-min sync) is never re-shown/re-added by the other.
+import {
+  getProcessedHashes,
+  saveProcessedHashes,
+  computeFingerprint,
+  isDuplicateTransaction,
+} from '../utils/deduplication';
 
 interface SmsModalProps {
   isOpen: boolean;
@@ -72,12 +47,16 @@ interface SmsModalProps {
       note?: string;
     }[]
   ) => Promise<number>;
+  // Current user's own ledger (incl. pending/imported/discarded SMS-staged rows), used to
+  // skip messages that are already recorded so they aren't shown again for re-review.
+  existingTransactions: Transaction[];
 }
 
 export const SmsModal: React.FC<SmsModalProps> = ({
   isOpen,
   onClose,
   onAddTransactions,
+  existingTransactions,
 }) => {
   const [permissionState, setPermissionState] = useState<'prompt' | 'granted' | 'denied'>('prompt');
   const [isScanning, setIsScanning] = useState<boolean>(false);
@@ -124,7 +103,7 @@ export const SmsModal: React.FC<SmsModalProps> = ({
         return;
       }
 
-      const processedHashes = getProcessedSmsHashes();
+      const processedHashes = getProcessedHashes();
       const results: ParsedSmsEntry[] = [];
       let skippedCount = 0;
 
@@ -138,13 +117,23 @@ export const SmsModal: React.FC<SmsModalProps> = ({
                 parsed.date = smsDate.toISOString().split('T')[0];
               }
             }
-            const hash = getSmsHash(msg.body, parsed.referenceNo, parsed.date, parsed.amount);
-            parsed.smsHash = hash;
+            const fp = computeFingerprint(parsed.date, parsed.amount, parsed.type, parsed.referenceNo, parsed.title);
+            parsed.smsHash = fp;
             parsed.rawSmsId = (msg as any)._id || (msg as any).id;
 
-            if (processedHashes.has(hash)) {
+            const isDup = isDuplicateTransaction(
+              parsed.date,
+              parsed.amount,
+              parsed.type,
+              parsed.referenceNo,
+              parsed.title,
+              existingTransactions,
+              processedHashes
+            );
+
+            if (isDup) {
               skippedCount++;
-              return; // Already parsed and imported into ledger
+              return; // Already parsed & added (by this scan or the background sync job)
             }
 
             results.push(parsed);
@@ -244,7 +233,10 @@ export const SmsModal: React.FC<SmsModalProps> = ({
 
       const addedCount = await onAddTransactions(formattedItems);
 
-      // Save hashes to mark as processed and attempt native markAsRead
+      // Save fingerprints (shared with the background sync job) to mark as processed and
+      // attempt native markAsRead. Note: the installed plugin (@solimanware/capacitor-sms-reader
+      // v5.0.3) does not actually implement markAsRead - this call is a forward-compatible
+      // no-op today. Duplicate prevention relies on the shared fingerprint check above.
       const hashesToSave: string[] = [];
       selected.forEach((item) => {
         if (item.smsHash) {
@@ -262,7 +254,7 @@ export const SmsModal: React.FC<SmsModalProps> = ({
       });
 
       if (hashesToSave.length > 0) {
-        saveProcessedSmsHashes(hashesToSave);
+        saveProcessedHashes(hashesToSave);
       }
 
       // Remove added items from state list

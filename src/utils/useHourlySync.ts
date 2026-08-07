@@ -11,7 +11,10 @@ import { MessageReader } from '@solimanware/capacitor-sms-reader';
 import { Capacitor } from '@capacitor/core';
 
 const LAST_SYNC_KEY = 'expensetracker_last_hourly_sync_time';
-const ONE_HOUR_MS = 60 * 60 * 1000; // 1 hour
+const SYNC_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+// First-ever run has no lastSyncTime yet - only look back this far so we don't re-parse
+// a phone's entire SMS history on first launch.
+const INITIAL_LOOKBACK_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 interface UseHourlySyncOptions {
   enabled: boolean;
@@ -86,8 +89,16 @@ export function useHourlySync({
 
       if (Capacitor.isNativePlatform()) {
         try {
-          const response = await MessageReader.getMessages({ limit: 100 });
+          // The installed SMS plugin (@solimanware/capacitor-sms-reader) has no unread/read
+          // filter - it only supports date-range/id filters. We emulate "only unread/new
+          // messages" by requesting messages received after the last successful sync instead
+          // of re-scanning the whole inbox every cycle. Fingerprint dedup below is the final
+          // safety net in case a message falls right on the boundary.
+          const minDate = lastSyncTime || Date.now() - INITIAL_LOOKBACK_MS;
+          const response = await MessageReader.getMessages({ minDate, limit: 100 });
           const rawMessages = response?.messages || [];
+
+          const readIdsToMark: string[] = [];
 
           rawMessages.forEach((msg) => {
             if (msg.body) {
@@ -132,8 +143,25 @@ export function useHourlySync({
                     }`.trim(),
                     fingerprint: fp,
                   });
+
+                  const rawId = (msg as any).id || (msg as any)._id;
+                  if (rawId) readIdsToMark.push(String(rawId));
                 }
               }
+            }
+          });
+
+          // Best-effort: mark successfully-parsed messages as read on-device so a future
+          // read-only filter (if the plugin ever adds one) won't re-surface them. The
+          // current plugin version has no markAsRead API, so this is a no-op guard today -
+          // actual duplicate prevention relies on the fingerprint/minDate logic above.
+          readIdsToMark.forEach((id) => {
+            try {
+              if (typeof (MessageReader as any).markAsRead === 'function') {
+                (MessageReader as any).markAsRead({ id });
+              }
+            } catch {
+              // ignore native markAsRead if unsupported
             }
           });
         } catch {
@@ -167,15 +195,15 @@ export function useHourlySync({
   useEffect(() => {
     if (!currentUser || !enabled) return;
 
-    // Run background SMS sync if 1 hour has elapsed
+    // Run background SMS sync if the 10-minute interval has elapsed
     const now = Date.now();
-    if (!lastSyncTime || now - lastSyncTime >= ONE_HOUR_MS) {
+    if (!lastSyncTime || now - lastSyncTime >= SYNC_INTERVAL_MS) {
       performSmsSync();
     }
 
     const timer = setInterval(() => {
       performSmsSync();
-    }, ONE_HOUR_MS);
+    }, SYNC_INTERVAL_MS);
 
     return () => clearInterval(timer);
   }, [currentUser, enabled, existingTransactions.length]);

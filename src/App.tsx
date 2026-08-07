@@ -569,6 +569,7 @@ export default function App() {
         isOpen={isSmsModalOpen}
         onClose={() => setIsSmsModalOpen(false)}
         onAddTransactions={handleImportBulkTransactions}
+        existingTransactions={transactions}
       />
 
       {/* Add / Edit Transaction Modal */}

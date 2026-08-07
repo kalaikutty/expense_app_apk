@@ -13,8 +13,12 @@ export type TransactionSource =
 
 export type PeriodType = 'Day' | 'Month' | 'Year';
 
-// 'pending' = awaiting review (e.g. SMS-parsed in expense_app_apk, not yet reviewed in expense_tracker)
-export type TransactionStatus = 'pending' | 'confirmed';
+// 'pending' = awaiting review in expense_tracker's Import SMS screen.
+// 'imported' = reviewed & kept (copied into expense_tracker's own ledger).
+// 'discarded' = reviewed & rejected by the user in expense_tracker.
+// Both 'imported' and 'discarded' rows are kept (never deleted) so expense_app_apk's
+// SMS parser never re-detects & re-adds the same message as a new transaction.
+export type TransactionStatus = 'pending' | 'confirmed' | 'imported' | 'discarded';
 
 export interface Transaction {
   id: string;
