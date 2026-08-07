@@ -250,6 +250,8 @@ export default function App() {
       }
     } catch (err) {
       handleFirestoreError(err, data.id ? OperationType.UPDATE : OperationType.CREATE, 'apk_transactions');
+      // Rethrow so the modal knows the save failed and shows an error instead of closing silently
+      throw err;
     }
   };
 
@@ -353,31 +355,36 @@ export default function App() {
     }
 
     let count = 0;
-    for (const row of rows) {
-      const payload: any = {
-        type: row.type || 'DEBIT',
-        amount: Number(row.amount) || 0,
-        title: row.title || 'Excel Entry',
-        category: row.category || 'Other',
-        date: row.date.length === 10 ? `${row.date}T12:00:00.000Z` : row.date,
-        note: row.note || null,
-        source: 'EXCEL',
-        status: 'confirmed',
-        userId: effectiveUser.uid,
-      };
+    try {
+      for (const row of rows) {
+        const payload: any = {
+          type: row.type || 'DEBIT',
+          amount: Number(row.amount) || 0,
+          title: row.title || 'Excel Entry',
+          category: row.category || 'Other',
+          date: row.date.length === 10 ? `${row.date}T12:00:00.000Z` : row.date,
+          note: row.note || null,
+          source: 'EXCEL',
+          status: 'confirmed',
+          userId: effectiveUser.uid,
+        };
 
-      if (row.id && !row.id.startsWith('temp-')) {
-        // Update existing document
-        const docRef = doc(db, 'apk_transactions', row.id);
-        await updateDoc(docRef, payload);
-      } else {
-        // Create new document
-        await addDoc(collection(db, 'apk_transactions'), {
-          ...payload,
-          createdAt: serverTimestamp(),
-        });
+        if (row.id && !row.id.startsWith('temp-')) {
+          // Update existing document
+          const docRef = doc(db, 'apk_transactions', row.id);
+          await updateDoc(docRef, payload);
+        } else {
+          // Create new document
+          await addDoc(collection(db, 'apk_transactions'), {
+            ...payload,
+            createdAt: serverTimestamp(),
+          });
+        }
+        count++;
       }
-      count++;
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'apk_transactions');
+      throw err;
     }
     return count;
   };
