@@ -231,8 +231,9 @@ export default function App() {
       date: data.date,
       note: data.note || null,
       source: data.source || 'manual',
-      // Manual add/edit through the modal counts as user-reviewed
-      status: 'confirmed',
+      // Tagging an entry as SMS (whether auto-parsed or manually set here) queues it
+      // for review in expense_tracker's Import SMS screen, same as the hourly sync path
+      status: (data.source || 'manual').toString().toLowerCase() === 'sms' ? 'pending' : 'confirmed',
       userId: effectiveUser.uid,
     };
 
