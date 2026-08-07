@@ -238,7 +238,7 @@ export const SmsModal: React.FC<SmsModalProps> = ({
         title: item.title,
         category: item.category,
         date: item.date.length === 10 ? `${item.date}T12:00:00.000Z` : item.date,
-        source: 'IMPORT' as const,
+        source: 'sms' as const,
         note: `Bank SMS (${item.bankName || 'Auto-parsed'}) ${item.referenceNo ? `Ref: ${item.referenceNo}` : ''}`.trim(),
       }));
 

@@ -153,16 +153,6 @@ export const AndroidApp: React.FC<AndroidAppProps> = ({
         </div>
 
         <div className="flex items-center space-x-2">
-          {/* Sync Bank SMS Button */}
-          <button
-            onClick={onOpenSmsModal}
-            className="flex items-center space-x-1 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs px-3 py-1.5 rounded-xl transition font-bold shadow-xs cursor-pointer"
-            title="Scan bank SMS for auto-import"
-          >
-            <MessageSquare className="w-3.5 h-3.5 text-white fill-white" />
-            <span>Parse SMS</span>
-          </button>
-
           {/* Pull / Manual Refresh trigger */}
           <button
             onClick={handlePullToRefresh}

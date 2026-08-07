@@ -3,7 +3,9 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   MessageSquare,
+  Mail,
   User,
+  FileSpreadsheet,
   Trash2,
   Edit2,
   Calendar,
@@ -129,17 +131,38 @@ export const TransactionList: React.FC<TransactionListProps> = ({
                       <span className="font-semibold text-slate-800 text-sm truncate group-hover:text-indigo-600 transition-colors">
                         {tx.title}
                       </span>
-                      {tx.source === 'SMS' ? (
-                        <span className="inline-flex items-center space-x-0.5 bg-blue-50 text-blue-600 text-[10px] font-semibold px-1.5 py-0.5 rounded border border-blue-200 shrink-0">
-                          <MessageSquare className="w-2.5 h-2.5" />
-                          <span>SMS</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center space-x-0.5 bg-slate-100 text-slate-500 text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0">
-                          <User className="w-2.5 h-2.5" />
-                          <span>Manual</span>
-                        </span>
-                      )}
+                      {(() => {
+                        const src = (tx.source || 'manual').toString().toLowerCase();
+                        if (src === 'sms') {
+                          return (
+                            <span className="inline-flex items-center space-x-0.5 bg-blue-50 text-blue-600 text-[10px] font-semibold px-1.5 py-0.5 rounded border border-blue-200 shrink-0">
+                              <MessageSquare className="w-2.5 h-2.5" />
+                              <span>SMS</span>
+                            </span>
+                          );
+                        } else if (src === 'email') {
+                          return (
+                            <span className="inline-flex items-center space-x-0.5 bg-purple-50 text-purple-700 text-[10px] font-semibold px-1.5 py-0.5 rounded border border-purple-200 shrink-0">
+                              <Mail className="w-2.5 h-2.5" />
+                              <span>Email</span>
+                            </span>
+                          );
+                        } else if (src === 'excel') {
+                          return (
+                            <span className="inline-flex items-center space-x-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-semibold px-1.5 py-0.5 rounded border border-emerald-200 shrink-0">
+                              <FileSpreadsheet className="w-2.5 h-2.5" />
+                              <span>Excel</span>
+                            </span>
+                          );
+                        } else {
+                          return (
+                            <span className="inline-flex items-center space-x-0.5 bg-slate-100 text-slate-500 text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0">
+                              <User className="w-2.5 h-2.5" />
+                              <span>Manual</span>
+                            </span>
+                          );
+                        }
+                      })()}
                     </div>
 
                     <div className="flex items-center space-x-2 text-xs text-slate-500 mt-0.5 truncate">

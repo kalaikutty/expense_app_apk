@@ -251,7 +251,7 @@ export const UserDrawer: React.FC<UserDrawerProps> = ({
           {/* Options Menu Items - One by One Stack */}
           <div className="space-y-3">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 px-1">
-              Data Controls
+              Data Controls & Background Sync
             </h3>
 
             {/* Bank SMS Auto-Parser */}

@@ -25,6 +25,7 @@ import { InstallModal } from './components/InstallModal';
 import { AuthModal } from './components/AuthModal';
 import { UserDrawer } from './components/UserDrawer';
 import { SmsModal } from './components/SmsModal';
+import { useHourlySync } from './utils/useHourlySync';
 import { ExcelRow } from './utils/excelHelper';
 
 interface CustomUser {
@@ -265,7 +266,7 @@ export default function App() {
       title: string;
       category?: string;
       date?: string;
-      source?: 'MANUAL' | 'EXCEL' | 'IMPORT';
+      source?: any;
       note?: string;
     }[]
   ): Promise<number> => {
@@ -279,7 +280,7 @@ export default function App() {
         title: item.title || 'Imported Entry',
         category: item.category || 'Other',
         date: item.date || new Date().toISOString(),
-        source: item.source || 'EXCEL',
+        source: item.source || 'manual',
         note: item.note || null,
         userId: effectiveUser.uid,
         createdAt: serverTimestamp(),
@@ -288,6 +289,53 @@ export default function App() {
       imported++;
     }
     return imported;
+  };
+
+  // Automated Hourly Background Sync for SMS
+  const {
+    lastSyncTime,
+    lastSyncSummary,
+    isParsing,
+    triggerManualHourlySync,
+  } = useHourlySync({
+    enabled: Boolean(effectiveUser),
+    currentUser: effectiveUser,
+    existingTransactions: transactions,
+    onAddTransactions: handleImportBulkTransactions,
+  });
+
+  const [parsingNotification, setParsingNotification] = useState<{ type: 'info' | 'success' | 'warning'; text: string } | null>(null);
+
+  // Handle Manual Ledger Refresh Click
+  const handleRefreshLedger = async () => {
+    if (isParsing) {
+      setParsingNotification({
+        type: 'info',
+        text: 'SMS background parsing is already running. Please wait for it to complete.',
+      });
+      setTimeout(() => setParsingNotification(null), 4000);
+      return;
+    }
+
+    setParsingNotification({
+      type: 'info',
+      text: 'Checking for new bank SMS messages in background...',
+    });
+
+    const result = await triggerManualHourlySync();
+    if (result.status === 'already_running') {
+      setParsingNotification({
+        type: 'warning',
+        text: 'SMS parsing is already running in the background.',
+      });
+    } else {
+      setParsingNotification({
+        type: 'success',
+        text: result.message || 'Ledger refreshed and SMS sync completed!',
+      });
+    }
+
+    setTimeout(() => setParsingNotification(null), 4500);
   };
 
   // Handle Interactive Excel Sheet Rows Sync & Save to Firestore
@@ -375,6 +423,32 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="py-4">
+        {/* Global Parsing Notification Banner */}
+        {parsingNotification && (
+          <div className="max-w-7xl mx-auto px-4 mb-3">
+            <div
+              className={`p-3 rounded-2xl text-xs font-semibold flex items-center justify-between border shadow-sm animate-in fade-in duration-200 ${
+                parsingNotification.type === 'info'
+                  ? 'bg-indigo-900 text-indigo-100 border-indigo-700'
+                  : parsingNotification.type === 'success'
+                  ? 'bg-emerald-900 text-emerald-100 border-emerald-700'
+                  : 'bg-amber-900 text-amber-100 border-amber-700'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <span className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
+                <span>{parsingNotification.text}</span>
+              </div>
+              <button
+                onClick={() => setParsingNotification(null)}
+                className="text-xs opacity-70 hover:opacity-100 px-2 py-0.5"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="max-w-7xl mx-auto p-12 text-center text-slate-500 space-y-3">
             <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
@@ -396,6 +470,7 @@ export default function App() {
               selectedPeriod={selectedPeriod}
               setSelectedPeriod={setSelectedPeriod}
               onOpenSmsModal={() => setIsSmsModalOpen(true)}
+              onRefresh={handleRefreshLedger}
             />
           ) : (
             <WebApp
@@ -411,6 +486,7 @@ export default function App() {
               selectedPeriod={selectedPeriod}
               setSelectedPeriod={setSelectedPeriod}
               onOpenExcelModal={() => setIsExcelModalOpen(true)}
+              onRefresh={handleRefreshLedger}
             />
           )
         ) : (
@@ -433,6 +509,7 @@ export default function App() {
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
         onOpenExcelModal={() => setIsExcelModalOpen(true)}
         onOpenSmsModal={() => setIsSmsModalOpen(true)}
+        onOpenInstallModal={() => setIsInstallModalOpen(true)}
         isNativeApk={isNativeApk}
       />
 

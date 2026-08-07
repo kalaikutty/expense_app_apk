@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Check, ArrowDownRight, ArrowUpRight } from 'lucide-react';
-import { Transaction, TransactionType } from '../types';
+import { Transaction, TransactionType, TransactionSource } from '../types';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, CURRENCY_SYMBOL } from '../constants';
 
 interface TransactionModalProps {
@@ -14,7 +14,7 @@ interface TransactionModalProps {
     category: string;
     date: string;
     note?: string;
-    source: 'MANUAL' | 'SMS';
+    source: TransactionSource;
   }) => Promise<void>;
   editTransaction?: Transaction | null;
   defaultDate?: Date;
@@ -99,7 +99,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         category,
         date: new Date(dateStr).toISOString(),
         note: note.trim() || undefined,
-        source: editTransaction ? editTransaction.source : 'MANUAL',
+        source: editTransaction ? editTransaction.source : 'manual',
       });
       onClose();
     } catch (err: any) {

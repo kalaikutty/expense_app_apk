@@ -71,18 +71,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {/* Dedicated SMS Sync Trigger Button (Shown ONLY in Native APK when logged in) */}
-            {currentUser && isNativeApk && onOpenSmsModal && (
-              <button
-                onClick={onOpenSmsModal}
-                className="p-2 sm:px-3 sm:py-2 flex items-center space-x-1.5 font-bold rounded-xl border transition active:scale-95 bg-amber-500 hover:bg-amber-600 text-white border-amber-400/40 shadow-md shadow-amber-500/20 cursor-pointer animate-pulse"
-                title="Scan & Parse Bank SMS (Android APK)"
-              >
-                <MessageSquare className="w-5 h-5 sm:w-4 sm:h-4 text-white fill-white" />
-                <span className="hidden sm:inline text-xs">Sync Bank SMS</span>
-              </button>
-            )}
-
             {/* Options Icon (Opens Right Sidebar Drawer - Always Present) */}
             <button
               onClick={onOpenDrawer}

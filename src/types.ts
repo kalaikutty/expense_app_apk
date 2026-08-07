@@ -1,6 +1,15 @@
 export type TransactionType = 'DEBIT' | 'CREDIT';
 
-export type TransactionSource = 'MANUAL' | 'EXCEL' | 'IMPORT';
+export type TransactionSource =
+  | 'manual'
+  | 'sms'
+  | 'email'
+  | 'excel'
+  | 'MANUAL'
+  | 'EXCEL'
+  | 'IMPORT'
+  | 'SMS'
+  | 'EMAIL';
 
 export type PeriodType = 'Day' | 'Month' | 'Year';
 
