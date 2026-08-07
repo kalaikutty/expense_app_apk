@@ -44,15 +44,18 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="flex items-center justify-between h-16">
           {/* Logo & App Name */}
           <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center font-bold text-lg shadow-indigo-500/20 shadow-lg text-white">
+            <div className="w-9 h-9 rounded-xl bg-amber-600 flex items-center justify-center font-bold text-lg shadow-amber-500/20 shadow-lg text-white">
               ₹
             </div>
             <div>
               <div className="flex items-center space-x-2">
                 <span className="font-bold text-lg tracking-tight">Expense Tracker</span>
+                <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  SMS
+                </span>
               </div>
               <p className="text-xs hidden sm:block text-slate-400">
-                Personal Expense Ledger
+                Bank SMS Auto-Synced Ledger
               </p>
             </div>
           </div>
@@ -66,7 +69,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="flex items-center space-x-2 px-3.5 py-1.5 rounded-full border bg-slate-800/90 hover:bg-slate-800 border-slate-700/80 text-xs sm:text-sm font-semibold text-slate-100 shadow-sm transition cursor-pointer active:scale-95"
                 title="View Profile / Options"
               >
-                <User className="w-4 h-4 text-indigo-400 shrink-0" />
+                <User className="w-4 h-4 text-amber-400 shrink-0" />
                 <span className="max-w-[140px] sm:max-w-[180px] truncate">{usernameLabel}</span>
               </button>
             )}
@@ -78,8 +81,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               title="Options & Account Menu"
             >
               <SlidersHorizontal className="w-5 h-5 text-slate-200" />
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-indigo-500 rounded-full animate-ping" />
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-indigo-500 rounded-full" />
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-500 rounded-full animate-ping" />
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-500 rounded-full" />
             </button>
           </div>
         </div>

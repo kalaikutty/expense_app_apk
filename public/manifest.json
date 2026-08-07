@@ -1,13 +1,13 @@
 {
-  "short_name": "Expense Tracker",
-  "name": "Expense Tracker Pro",
+  "short_name": "ExpTrack SMS",
+  "name": "Expense Tracker SMS Sync",
   "icons": [
     {
       "src": "/icon.svg",
       "type": "image/svg+xml",
       "sizes": "512x512 192x192 any"
     },
-    {
+    {-
       "src": "/icon.svg",
       "type": "image/svg+xml",
       "sizes": "192x192",
@@ -22,7 +22,7 @@
   ],
   "start_url": "/",
   "background_color": "#0f172a",
-  "theme_color": "#4f46e5",
+  "theme_color": "#d97706",
   "display": "standalone",
   "orientation": "portrait"
 }

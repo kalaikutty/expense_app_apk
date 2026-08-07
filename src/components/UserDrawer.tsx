@@ -12,6 +12,7 @@ import {
   RefreshCw,
   FileSpreadsheet,
   MessageSquare,
+  Trash2,
 } from 'lucide-react';
 import { Transaction } from '../types';
 import { generateExcelCsv, downloadExcelFile, parseExcelCsvText } from '../utils/excelHelper';
@@ -32,6 +33,7 @@ interface UserDrawerProps {
   onOpenExcelModal: () => void;
   onOpenSmsModal?: () => void;
   onOpenInstallModal?: () => void;
+  onDeleteAccount?: () => Promise<{ success: boolean; message: string }>;
   isNativeApk?: boolean;
 }
 
@@ -46,11 +48,14 @@ export const UserDrawer: React.FC<UserDrawerProps> = ({
   onOpenExcelModal,
   onOpenSmsModal,
   onOpenInstallModal,
+  onDeleteAccount,
   isNativeApk = false,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [importMessage, setImportMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isImporting, setIsImporting] = useState<boolean>(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState<boolean>(false);
 
   if (!isOpen) return null;
 
@@ -140,6 +145,18 @@ export const UserDrawer: React.FC<UserDrawerProps> = ({
     };
 
     reader.readAsText(file);
+  };
+
+  // Permanently delete the account and all of its data
+  const handleConfirmDeleteAccount = async () => {
+    if (!onDeleteAccount) return;
+    setIsDeletingAccount(true);
+    const result = await onDeleteAccount();
+    setIsDeletingAccount(false);
+    setShowDeleteConfirm(false);
+    setImportMessage({ type: result.success ? 'success' : 'error', text: result.message });
+    setTimeout(() => setImportMessage(null), 5000);
+    if (result.success) onClose();
   };
 
   return (
@@ -393,6 +410,52 @@ export const UserDrawer: React.FC<UserDrawerProps> = ({
                   </div>
                 </div>
               </button>
+            )}
+
+            {/* 5. Delete Account (destructive, danger zone) */}
+            {currentUser && onDeleteAccount && (
+              showDeleteConfirm ? (
+                <div className="p-3.5 bg-rose-950/60 rounded-2xl border border-rose-800/70 space-y-2.5">
+                  <p className="text-xs font-semibold text-rose-200">
+                    Delete account permanently? This removes your login and all transactions in both apps. This cannot be undone.
+                  </p>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={handleConfirmDeleteAccount}
+                      disabled={isDeletingAccount}
+                      className="flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs rounded-xl shadow-md transition disabled:opacity-50 flex items-center justify-center space-x-1.5"
+                    >
+                      {isDeletingAccount ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                      <span>{isDeletingAccount ? 'Deleting...' : 'Yes, Delete'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteConfirm(false)}
+                      disabled={isDeletingAccount}
+                      className="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold text-xs rounded-xl transition disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="w-full flex items-center justify-between p-3.5 bg-slate-800/50 hover:bg-rose-950/40 text-slate-400 hover:text-rose-300 rounded-2xl border border-slate-800 hover:border-rose-800/70 transition active:scale-[0.98]"
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 rounded-xl bg-slate-800 text-slate-500">
+                      <Trash2 className="w-4 h-4" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-semibold">Delete Account</p>
+                      <p className="text-xs opacity-70">Permanently erase account & data</p>
+                    </div>
+                  </div>
+                </button>
+              )
             )}
           </div>
         </div>

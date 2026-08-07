@@ -143,12 +143,12 @@ export const AndroidApp: React.FC<AndroidAppProps> = ({
   return (
     <div className="w-full min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col relative pb-20">
       {/* Mobile App Bar */}
-      <div className="sticky top-0 z-30 bg-indigo-600 text-white p-4 shadow-md flex items-center justify-between">
+      <div className="sticky top-0 z-30 bg-amber-600 text-white p-4 shadow-md flex items-center justify-between">
         <div className="flex items-center space-x-2">
-          <Smartphone className="w-5 h-5 text-indigo-200" />
+          <Smartphone className="w-5 h-5 text-amber-200" />
           <div>
-            <h3 className="font-bold text-base leading-none">Expense Tracker</h3>
-            <span className="text-[10px] text-indigo-200 font-medium">Personal Ledger</span>
+            <h3 className="font-bold text-base leading-none">Expense Tracker SMS</h3>
+            <span className="text-[10px] text-amber-200 font-medium">Bank SMS Auto-Synced Ledger</span>
           </div>
         </div>
 
@@ -166,7 +166,7 @@ export const AndroidApp: React.FC<AndroidAppProps> = ({
 
       {/* Pull to Refresh Indicator Bar */}
       {isPullRefreshing && (
-        <div className="bg-indigo-50 dark:bg-indigo-950/80 border-b border-indigo-100 dark:border-indigo-900 py-1.5 text-center text-xs text-indigo-700 dark:text-indigo-300 font-semibold flex items-center justify-center space-x-2">
+        <div className="bg-amber-50 dark:bg-amber-950/80 border-b border-amber-100 dark:border-amber-900 py-1.5 text-center text-xs text-amber-700 dark:text-amber-300 font-semibold flex items-center justify-center space-x-2">
           <RefreshCw className="w-3.5 h-3.5 animate-spin" />
           <span>Refreshing live snapshot...</span>
         </div>
@@ -217,7 +217,7 @@ export const AndroidApp: React.FC<AndroidAppProps> = ({
       <div className="fixed bottom-6 right-6 z-40">
         <button
           onClick={onOpenAddModal}
-          className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-sm px-5 py-3.5 rounded-full shadow-xl shadow-indigo-600/40 transition-all border border-white/20 cursor-pointer"
+          className="flex items-center space-x-2 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold text-sm px-5 py-3.5 rounded-full shadow-xl shadow-amber-600/40 transition-all border border-white/20 cursor-pointer"
         >
           <Plus className="w-5 h-5" />
           <span>+ Add Entry</span>

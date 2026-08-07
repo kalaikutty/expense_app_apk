@@ -10,7 +10,7 @@ import {
   deleteDoc,
   serverTimestamp,
 } from 'firebase/firestore';
-import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
+import { onAuthStateChanged, signOut, deleteUser, User as FirebaseUser } from 'firebase/auth';
 import { Capacitor } from '@capacitor/core';
 import { db, auth } from './firebase';
 import { Transaction, PeriodType, TransactionType } from './types';
@@ -413,6 +413,40 @@ export default function App() {
     }
   };
 
+  // Permanently delete the current account: its transactions, profile doc, and Auth user
+  const handleDeleteAccount = async (): Promise<{ success: boolean; message: string }> => {
+    if (!effectiveUser) {
+      return { success: false, message: 'No account is signed in.' };
+    }
+
+    try {
+      await Promise.all(transactions.map((t) => deleteDoc(doc(db, 'transactions', t.id))));
+      await deleteDoc(doc(db, 'users', usernameTag.toLowerCase()));
+
+      if (auth.currentUser) {
+        await deleteUser(auth.currentUser);
+      }
+
+      setCustomUser(null);
+      try {
+        localStorage.removeItem(CUSTOM_USER_STORAGE_KEY);
+      } catch (e) {
+        console.error('Failed to clear session:', e);
+      }
+
+      return { success: true, message: 'Account and all associated data were deleted successfully.' };
+    } catch (err: any) {
+      if (err?.code === 'auth/requires-recent-login') {
+        return {
+          success: false,
+          message: 'For security, please log out and log back in, then try deleting your account again.',
+        };
+      }
+      handleFirestoreError(err, OperationType.DELETE, 'account');
+      return { success: false, message: err?.message || 'Failed to delete account.' };
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-100 font-sans text-slate-900 antialiased transition-colors duration-200 selection:bg-indigo-500 selection:text-white dark:bg-slate-950 dark:text-slate-100">
       {/* Top Navigation Bar */}
@@ -516,6 +550,7 @@ export default function App() {
         onOpenExcelModal={() => setIsExcelModalOpen(true)}
         onOpenSmsModal={() => setIsSmsModalOpen(true)}
         onOpenInstallModal={() => setIsInstallModalOpen(true)}
+        onDeleteAccount={handleDeleteAccount}
         isNativeApk={isNativeApk}
       />
 
