@@ -7,10 +7,8 @@ import {
   CheckCircle2,
   AlertCircle,
   PlusCircle,
-  Sparkles,
   Smartphone,
   RefreshCw,
-  Edit3,
   Calendar,
   Tag,
   ArrowUpRight,
@@ -18,11 +16,11 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
+import { MessageReader } from '@solimanware/capacitor-sms-reader';
 import {
   ParsedSmsEntry,
   parseBankSms,
   CATEGORIES,
-  SAMPLE_BANK_SMS_MESSAGES,
 } from '../utils/smsParser';
 
 interface SmsModalProps {
@@ -41,25 +39,20 @@ interface SmsModalProps {
   ) => Promise<number>;
 }
 
-type SmsSourceTab = 'device' | 'paste' | 'sample';
-
 export const SmsModal: React.FC<SmsModalProps> = ({
   isOpen,
   onClose,
   onAddTransactions,
 }) => {
-  const [activeTab, setActiveTab] = useState<SmsSourceTab>('device');
   const [permissionState, setPermissionState] = useState<'prompt' | 'granted' | 'denied'>('prompt');
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [parsedEntries, setParsedEntries] = useState<ParsedSmsEntry[]>([]);
-  const [pastedSms, setPastedSms] = useState<string>('');
   const [expandedSmsId, setExpandedSmsId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'info' | 'error'; text: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   useEffect(() => {
     if (isOpen) {
-      // Auto scan sample or check permissions on open
       checkSmsPermissions();
     }
   }, [isOpen]);
@@ -68,100 +61,101 @@ export const SmsModal: React.FC<SmsModalProps> = ({
 
   const checkSmsPermissions = async () => {
     try {
-      if ('permissions' in navigator && (navigator.permissions as any).query) {
-        const result = await (navigator.permissions as any).query({ name: 'sms' as any });
-        if (result.state === 'granted') {
-          setPermissionState('granted');
-        } else if (result.state === 'denied') {
-          setPermissionState('denied');
-        } else {
-          setPermissionState('prompt');
-        }
+      const status = await MessageReader.checkPermissions();
+      if (status && status.messages === 'granted') {
+        setPermissionState('granted');
+      } else if (status && status.messages === 'denied') {
+        setPermissionState('denied');
+      } else {
+        setPermissionState('prompt');
       }
     } catch {
-      // Fallback
+      // Running on web or unhandled native bridge
+      setPermissionState('prompt');
     }
   };
 
   const handleRequestPermission = async () => {
     setIsScanning(true);
-    setStatusMessage({ type: 'info', text: 'Requesting Android SMS Permission...' });
+    setStatusMessage({ type: 'info', text: 'Prompting Android OS for READ_SMS permission...' });
 
-    // Simulate native permission check & SMS fetch
-    setTimeout(() => {
-      setPermissionState('granted');
-      handleScanDeviceSms();
-    }, 800);
+    try {
+      const res = await MessageReader.requestPermissions();
+      if (res && res.messages === 'granted') {
+        setPermissionState('granted');
+        setStatusMessage({ type: 'success', text: 'Android SMS Permission granted!' });
+        await handleScanDeviceSms();
+      } else {
+        setPermissionState('denied');
+        setStatusMessage({
+          type: 'error',
+          text: 'Permission denied. Please enable SMS permission in phone App Settings > Permissions > SMS.',
+        });
+        setIsScanning(false);
+      }
+    } catch (err: any) {
+      setIsScanning(false);
+      setStatusMessage({
+        type: 'error',
+        text: `Native permission error: ${err?.message || 'Requires running as native Android APK'}.`,
+      });
+    }
   };
 
-  const handleScanDeviceSms = () => {
+  const handleScanDeviceSms = async () => {
     setIsScanning(true);
-    setStatusMessage({ type: 'info', text: 'Scanning bank SMS inbox on device...' });
+    setStatusMessage({ type: 'info', text: 'Scanning Android device SMS inbox...' });
 
-    setTimeout(() => {
-      // Parse sample + device bank messages
+    try {
+      const response = await MessageReader.getMessages({ limit: 200 });
+      const rawMessages = response?.messages || [];
+
+      if (rawMessages.length === 0) {
+        setIsScanning(false);
+        setStatusMessage({
+          type: 'info',
+          text: 'Scanned SMS inbox, but no messages were found.',
+        });
+        return;
+      }
+
       const results: ParsedSmsEntry[] = [];
-      SAMPLE_BANK_SMS_MESSAGES.forEach((msg) => {
-        const parsed = parseBankSms(msg);
-        if (parsed) results.push(parsed);
+      rawMessages.forEach((msg) => {
+        if (msg.body) {
+          const parsed = parseBankSms(msg.body);
+          if (parsed) {
+            if (msg.date) {
+              const smsDate = new Date(msg.date);
+              if (!isNaN(smsDate.getTime())) {
+                parsed.date = smsDate.toISOString().split('T')[0];
+              }
+            }
+            results.push(parsed);
+          }
+        }
       });
 
       setParsedEntries(results);
       setIsScanning(false);
-      setStatusMessage({
-        type: 'success',
-        text: `Successfully scanned and parsed ${results.length} bank transaction SMS messages!`,
-      });
-    }, 1000);
-  };
 
-  const handleParsePastedSms = () => {
-    if (!pastedSms.trim()) {
-      setStatusMessage({ type: 'error', text: 'Please paste SMS message text to parse.' });
-      return;
-    }
-
-    const lines = pastedSms.split(/\n+/).filter((l) => l.trim().length > 5);
-    const results: ParsedSmsEntry[] = [];
-
-    lines.forEach((line) => {
-      const parsed = parseBankSms(line);
-      if (parsed) results.push(parsed);
-    });
-
-    if (results.length === 0) {
-      // Try parsing the whole text as one
-      const single = parseBankSms(pastedSms);
-      if (single) results.push(single);
-    }
-
-    if (results.length === 0) {
+      if (results.length > 0) {
+        setStatusMessage({
+          type: 'success',
+          text: `Successfully scanned inbox and extracted ${results.length} bank transaction SMS messages!`,
+        });
+      } else {
+        setStatusMessage({
+          type: 'info',
+          text: `Scanned ${rawMessages.length} inbox SMS, but no debit/credit bank transactions were matched.`,
+        });
+      }
+    } catch (err: any) {
+      setIsScanning(false);
       setStatusMessage({
         type: 'error',
-        text: 'Could not extract bank transaction details from the pasted text. Ensure it contains amount and debit/credit details.',
+        text: `Could not read device SMS inbox: ${err?.message || 'Native SMS bridge error'}. Ensure SMS permission is granted in Android settings.`,
       });
-      return;
     }
-
-    setParsedEntries((prev) => [...results, ...prev]);
-    setPastedSms('');
-    setStatusMessage({
-      type: 'success',
-      text: `Successfully parsed ${results.length} transaction entry/entries!`,
-    });
-  };
-
-  const handleLoadSampleData = () => {
-    const results: ParsedSmsEntry[] = [];
-    SAMPLE_BANK_SMS_MESSAGES.forEach((msg) => {
-      const parsed = parseBankSms(msg);
-      if (parsed) results.push(parsed);
-    });
-    setParsedEntries(results);
-    setStatusMessage({
-      type: 'success',
-      text: `Loaded ${results.length} sample bank SMS transactions for demonstration.`,
-    });
   };
 
   const handleToggleSelect = (id: string) => {
@@ -237,9 +231,9 @@ export const SmsModal: React.FC<SmsModalProps> = ({
               <MessageSquare className="w-5 h-5 text-amber-300" />
             </div>
             <div>
-              <h2 className="text-base font-bold leading-tight">Bank SMS Auto-Parser</h2>
+              <h2 className="text-base font-bold leading-tight">Bank SMS Sync</h2>
               <p className="text-xs text-indigo-100 font-medium">
-                Detect, extract & import transactions automatically from SMS
+                Detect & import bank transactions automatically from device SMS
               </p>
             </div>
           </div>
@@ -251,56 +245,10 @@ export const SmsModal: React.FC<SmsModalProps> = ({
           </button>
         </div>
 
-        {/* Source Switcher Tabs */}
-        <div className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-6 py-2.5 flex items-center justify-between gap-2 overflow-x-auto text-xs font-semibold">
-          <div className="flex space-x-1.5">
-            <button
-              onClick={() => setActiveTab('device')}
-              className={`px-3 py-1.5 rounded-xl transition flex items-center space-x-1.5 cursor-pointer ${
-                activeTab === 'device'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800'
-              }`}
-            >
-              <Smartphone className="w-3.5 h-3.5" />
-              <span>APK Device Scan</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('paste')}
-              className={`px-3 py-1.5 rounded-xl transition flex items-center space-x-1.5 cursor-pointer ${
-                activeTab === 'paste'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800'
-              }`}
-            >
-              <Edit3 className="w-3.5 h-3.5" />
-              <span>Paste Custom SMS</span>
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab('sample');
-                handleLoadSampleData();
-              }}
-              className={`px-3 py-1.5 rounded-xl transition flex items-center space-x-1.5 cursor-pointer ${
-                activeTab === 'sample'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>Load Sample SMS</span>
-            </button>
-          </div>
-
-          <span className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold">
-            APK Native Feature
-          </span>
-        </div>
-
         {/* Status Notification Banner */}
         {statusMessage && (
           <div
-            className={`px-6 py-2 text-xs font-semibold flex items-center justify-between border-b ${
+            className={`px-6 py-2.5 text-xs font-semibold flex items-center justify-between border-b ${
               statusMessage.type === 'success'
                 ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
                 : statusMessage.type === 'error'
@@ -329,71 +277,42 @@ export const SmsModal: React.FC<SmsModalProps> = ({
 
         {/* Modal Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
-          {/* TAB 1: Device Scan View */}
-          {activeTab === 'device' && (
-            <div className="space-y-4">
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div>
-                  <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                    <Smartphone className="w-4 h-4 text-indigo-600" />
-                    <span>Android Device SMS Permission</span>
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Permission status:{' '}
-                    <strong
-                      className={
-                        permissionState === 'granted'
-                          ? 'text-emerald-600 dark:text-emerald-400'
-                          : 'text-amber-600 dark:text-amber-400'
-                      }
-                    >
-                      {permissionState === 'granted' ? '✓ Granted' : 'Permission Required'}
-                    </strong>
-                  </p>
-                </div>
-
-                <button
-                  onClick={permissionState === 'granted' ? handleScanDeviceSms : handleRequestPermission}
-                  disabled={isScanning}
-                  className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
+          {/* Permission & Scanning Section */}
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div>
+              <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                <Smartphone className="w-4 h-4 text-indigo-600" />
+                <span>Android System SMS Permission</span>
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Permission status:{' '}
+                <strong
+                  className={
+                    permissionState === 'granted'
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-amber-600 dark:text-amber-400'
+                  }
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
-                  <span>
-                    {isScanning
-                      ? 'Scanning Inbox...'
-                      : permissionState === 'granted'
-                      ? 'Rescan Device SMS'
-                      : 'Grant Permission & Scan SMS'}
-                  </span>
-                </button>
-              </div>
+                  {permissionState === 'granted' ? '✓ Granted' : 'Permission Required'}
+                </strong>
+              </p>
             </div>
-          )}
 
-          {/* TAB 2: Paste Custom SMS View */}
-          {activeTab === 'paste' && (
-            <div className="space-y-3">
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                Paste raw Bank SMS messages (one per line):
-              </label>
-              <textarea
-                value={pastedSms}
-                onChange={(e) => setPastedSms(e.target.value)}
-                rows={4}
-                placeholder="e.g. Sent Rs. 450.00 from HDFC Bank A/c xx1234 to SWIGGY on 05-Aug-26. Ref: 42193181"
-                className="w-full p-3 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 font-mono"
-              />
-              <div className="flex justify-end">
-                <button
-                  onClick={handleParsePastedSms}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center space-x-1.5 cursor-pointer"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Parse Text Entries</span>
-                </button>
-              </div>
-            </div>
-          )}
+            <button
+              onClick={permissionState === 'granted' ? handleScanDeviceSms : handleRequestPermission}
+              disabled={isScanning}
+              className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
+              <span>
+                {isScanning
+                  ? 'Scanning Inbox...'
+                  : permissionState === 'granted'
+                  ? 'Rescan Device SMS'
+                  : 'Grant Permission & Scan SMS'}
+              </span>
+            </button>
+          </div>
 
           {/* PARSED ENTRIES SECTION */}
           {parsedEntries.length > 0 ? (
@@ -549,10 +468,10 @@ export const SmsModal: React.FC<SmsModalProps> = ({
               <MessageSquare className="w-10 h-10 text-indigo-400 mx-auto" />
               <div>
                 <h4 className="font-bold text-sm text-slate-700 dark:text-slate-300">
-                  No SMS Messages Parsed Yet
+                  No Bank SMS Messages Scanned Yet
                 </h4>
                 <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
-                  Tap "Grant Permission & Scan SMS" above, paste custom SMS text, or click "Load Sample SMS" to see parsed formatted entries ready to import.
+                  Tap "Grant Permission & Scan SMS" or "Rescan Device SMS" above to automatically scan your device's inbox for bank debit and credit SMS.
                 </p>
               </div>
             </div>
@@ -582,7 +501,7 @@ export const SmsModal: React.FC<SmsModalProps> = ({
               ) : (
                 <PlusCircle className="w-4 h-4" />
               )}
-              <span>Add Selected Entries to App ({selectedCount})</span>
+              <span>Add Selected Entries ({selectedCount})</span>
             </button>
           </div>
         </div>

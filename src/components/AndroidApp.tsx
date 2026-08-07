@@ -141,125 +141,97 @@ export const AndroidApp: React.FC<AndroidAppProps> = ({
   };
 
   return (
-    <div className="flex justify-center items-start py-4 px-2">
-      {/* Android Device Mockup Container */}
-      <div className="w-full max-w-[420px] bg-slate-900 rounded-[44px] p-3 shadow-2xl border-4 border-slate-800 relative">
-        {/* Android Hardware Camera Punch Hole */}
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 w-4 h-4 bg-slate-950 rounded-full z-50 border border-slate-800" />
-
-        {/* Phone Inner Screen */}
-        <div className="bg-slate-50 text-slate-900 rounded-[34px] overflow-hidden flex flex-col h-[820px] relative">
-          {/* Android Status Bar */}
-          <div className="bg-slate-900 text-white px-6 pt-3 pb-2 flex items-center justify-between text-xs font-semibold z-40">
-            <span>
-              {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
-            </span>
-            <div className="flex items-center space-x-2">
-              <Signal className="w-3.5 h-3.5" />
-              <Wifi className="w-3.5 h-3.5" />
-              <Battery className="w-4 h-4" />
-            </div>
-          </div>
-
-          {/* Android App Bar */}
-          <div className="bg-indigo-600 text-white p-4 shadow-md flex items-center justify-between z-30">
-            <div className="flex items-center space-x-2">
-              <Smartphone className="w-5 h-5 text-indigo-200" />
-              <div>
-                <h3 className="font-bold text-base leading-none">Expense Tracker</h3>
-                <span className="text-[10px] text-indigo-200 font-medium">Android Client</span>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-1.5">
-              {/* Sync Bank SMS Button (Dedicated APK Trigger) */}
-              <button
-                onClick={onOpenSmsModal}
-                className="flex items-center space-x-1 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs px-2.5 py-1.5 rounded-xl transition font-bold shadow-xs cursor-pointer"
-                title="Scan bank SMS for auto-import"
-              >
-                <MessageSquare className="w-3.5 h-3.5 text-white fill-white" />
-                <span>Parse SMS</span>
-              </button>
-
-              {/* Pull Refresh trigger */}
-              <button
-                onClick={handlePullToRefresh}
-                className="p-1.5 rounded-xl hover:bg-white/10 text-white transition"
-                title="Pull to refresh"
-              >
-                <RefreshCw className={`w-4 h-4 ${isPullRefreshing ? 'animate-spin' : ''}`} />
-              </button>
-            </div>
-          </div>
-
-          {/* Pull to Refresh Indicator Bar */}
-          {isPullRefreshing && (
-            <div className="bg-indigo-50 border-b border-indigo-100 py-1.5 text-center text-xs text-indigo-700 font-semibold flex items-center justify-center space-x-2 animate-in slide-in-from-top duration-150">
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              <span>Refreshing Firestore live snapshot...</span>
-            </div>
-          )}
-
-          {/* Scrollable Main Body */}
-          <div className="flex-1 overflow-y-auto p-3.5 space-y-4 pb-20">
-            {/* Period Switcher */}
-            <div className="flex justify-center">
-              <PeriodSwitcher
-                selectedPeriod={selectedPeriod}
-                onSelectPeriod={setSelectedPeriod}
-              />
-            </div>
-
-            {/* Date Navigator */}
-            <DateNavigator
-              currentDate={currentDate}
-              period={selectedPeriod}
-              onNavigate={handleNavigate}
-              onSelectDate={setCurrentDate}
-            />
-
-            {/* Summary Cards */}
-            <SummaryCards
-              totalIncome={totalIncome}
-              totalExpense={totalExpense}
-              netBalance={netBalance}
-              period={selectedPeriod}
-            />
-
-            {/* Charts (Month & Year) */}
-            <Charts
-              transactions={periodTransactions}
-              period={selectedPeriod}
-              currentDate={currentDate}
-            />
-
-            {/* Transaction List */}
-            <TransactionList
-              transactions={periodTransactions}
-              onEditTransaction={onEditTransaction}
-              onDeleteTransaction={onDeleteTransaction}
-            />
-          </div>
-
-          {/* Android Floating Action Button (+ Add Entry) */}
-          <div className="absolute bottom-5 left-0 right-0 z-40 flex justify-center pointer-events-none">
-            <button
-              onClick={onOpenAddModal}
-              className="pointer-events-auto flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs px-5 py-3 rounded-full shadow-lg shadow-indigo-600/40 transition-all border border-white/20"
-            >
-              <Plus className="w-4 h-4" />
-              <span>+ Add Entry</span>
-            </button>
-          </div>
-
-          {/* Android Bottom Navigation Bar */}
-          <div className="bg-slate-900 text-slate-400 py-2 px-6 flex items-center justify-around border-t border-slate-800 text-xs">
-            <div className="w-3 h-3 border-l-2 border-b-2 border-slate-400 rotate-45" />
-            <div className="w-3.5 h-3.5 border-2 border-slate-400 rounded-full" />
-            <div className="w-3.5 h-3.5 border-2 border-slate-400 rounded-xs" />
+    <div className="w-full min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col relative pb-20">
+      {/* Mobile App Bar */}
+      <div className="sticky top-0 z-30 bg-indigo-600 text-white p-4 shadow-md flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <Smartphone className="w-5 h-5 text-indigo-200" />
+          <div>
+            <h3 className="font-bold text-base leading-none">Expense Tracker</h3>
+            <span className="text-[10px] text-indigo-200 font-medium">Personal Ledger</span>
           </div>
         </div>
+
+        <div className="flex items-center space-x-2">
+          {/* Sync Bank SMS Button */}
+          <button
+            onClick={onOpenSmsModal}
+            className="flex items-center space-x-1 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs px-3 py-1.5 rounded-xl transition font-bold shadow-xs cursor-pointer"
+            title="Scan bank SMS for auto-import"
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-white fill-white" />
+            <span>Parse SMS</span>
+          </button>
+
+          {/* Pull / Manual Refresh trigger */}
+          <button
+            onClick={handlePullToRefresh}
+            className="p-1.5 rounded-xl hover:bg-white/10 text-white transition cursor-pointer"
+            title="Refresh transactions"
+          >
+            <RefreshCw className={`w-4 h-4 ${isPullRefreshing ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* Pull to Refresh Indicator Bar */}
+      {isPullRefreshing && (
+        <div className="bg-indigo-50 dark:bg-indigo-950/80 border-b border-indigo-100 dark:border-indigo-900 py-1.5 text-center text-xs text-indigo-700 dark:text-indigo-300 font-semibold flex items-center justify-center space-x-2">
+          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+          <span>Refreshing live snapshot...</span>
+        </div>
+      )}
+
+      {/* Main Body */}
+      <div className="flex-1 max-w-4xl w-full mx-auto p-3.5 sm:p-5 space-y-4">
+        {/* Period Switcher */}
+        <div className="flex justify-center">
+          <PeriodSwitcher
+            selectedPeriod={selectedPeriod}
+            onSelectPeriod={setSelectedPeriod}
+          />
+        </div>
+
+        {/* Date Navigator */}
+        <DateNavigator
+          currentDate={currentDate}
+          period={selectedPeriod}
+          onNavigate={handleNavigate}
+          onSelectDate={setCurrentDate}
+        />
+
+        {/* Summary Cards */}
+        <SummaryCards
+          totalIncome={totalIncome}
+          totalExpense={totalExpense}
+          netBalance={netBalance}
+          period={selectedPeriod}
+        />
+
+        {/* Charts (Month & Year) */}
+        <Charts
+          transactions={periodTransactions}
+          period={selectedPeriod}
+          currentDate={currentDate}
+        />
+
+        {/* Transaction List */}
+        <TransactionList
+          transactions={periodTransactions}
+          onEditTransaction={onEditTransaction}
+          onDeleteTransaction={onDeleteTransaction}
+        />
+      </div>
+
+      {/* Floating Action Button (+ Add Entry) */}
+      <div className="fixed bottom-6 right-6 z-40">
+        <button
+          onClick={onOpenAddModal}
+          className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-sm px-5 py-3.5 rounded-full shadow-xl shadow-indigo-600/40 transition-all border border-white/20 cursor-pointer"
+        >
+          <Plus className="w-5 h-5" />
+          <span>+ Add Entry</span>
+        </button>
       </div>
     </div>
   );
