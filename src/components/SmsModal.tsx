@@ -24,6 +24,40 @@ import {
   CATEGORIES,
 } from '../utils/smsParser';
 
+const PROCESSED_SMS_KEY = 'expensetracker_processed_sms_hashes';
+
+const getProcessedSmsHashes = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem(PROCESSED_SMS_KEY);
+    if (raw) {
+      return new Set(JSON.parse(raw));
+    }
+  } catch {
+    // ignore
+  }
+  return new Set();
+};
+
+const saveProcessedSmsHashes = (newHashes: string[]) => {
+  try {
+    const existing = getProcessedSmsHashes();
+    newHashes.forEach((h) => existing.add(h));
+    localStorage.setItem(PROCESSED_SMS_KEY, JSON.stringify(Array.from(existing)));
+  } catch {
+    // ignore
+  }
+};
+
+const getSmsHash = (body: string, refNo?: string, dateStr?: string, amount?: number) => {
+  const str = `${body.trim()}_${refNo || ''}_${dateStr || ''}_${amount || ''}`;
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return `sms_hash_${hash}`;
+};
+
 interface SmsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -90,7 +124,10 @@ export const SmsModal: React.FC<SmsModalProps> = ({
         return;
       }
 
+      const processedHashes = getProcessedSmsHashes();
       const results: ParsedSmsEntry[] = [];
+      let skippedCount = 0;
+
       rawMessages.forEach((msg) => {
         if (msg.body) {
           const parsed = parseBankSms(msg.body);
@@ -101,6 +138,15 @@ export const SmsModal: React.FC<SmsModalProps> = ({
                 parsed.date = smsDate.toISOString().split('T')[0];
               }
             }
+            const hash = getSmsHash(msg.body, parsed.referenceNo, parsed.date, parsed.amount);
+            parsed.smsHash = hash;
+            parsed.rawSmsId = (msg as any)._id || (msg as any).id;
+
+            if (processedHashes.has(hash)) {
+              skippedCount++;
+              return; // Already parsed and imported into ledger
+            }
+
             results.push(parsed);
           }
         }
@@ -112,7 +158,12 @@ export const SmsModal: React.FC<SmsModalProps> = ({
       if (results.length > 0) {
         setStatusMessage({
           type: 'success',
-          text: `Successfully scanned inbox and extracted ${results.length} bank transaction SMS messages!`,
+          text: `Extracted ${results.length} new bank transaction SMS message(s)${skippedCount > 0 ? ` (${skippedCount} previously imported skipped)` : ''}!`,
+        });
+      } else if (skippedCount > 0) {
+        setStatusMessage({
+          type: 'info',
+          text: `All ${skippedCount} matched bank SMS transactions have already been imported into your ledger.`,
         });
       } else {
         setStatusMessage({
@@ -193,9 +244,34 @@ export const SmsModal: React.FC<SmsModalProps> = ({
 
       const addedCount = await onAddTransactions(formattedItems);
 
+      // Save hashes to mark as processed and attempt native markAsRead
+      const hashesToSave: string[] = [];
+      selected.forEach((item) => {
+        if (item.smsHash) {
+          hashesToSave.push(item.smsHash);
+        }
+        if (item.rawSmsId) {
+          try {
+            if (typeof (MessageReader as any).markAsRead === 'function') {
+              (MessageReader as any).markAsRead({ id: item.rawSmsId });
+            }
+          } catch {
+            // ignore native markAsRead if unsupported
+          }
+        }
+      });
+
+      if (hashesToSave.length > 0) {
+        saveProcessedSmsHashes(hashesToSave);
+      }
+
+      // Remove added items from state list
+      const addedIds = new Set(selected.map((s) => s.id));
+      setParsedEntries((prev) => prev.filter((item) => !addedIds.has(item.id)));
+
       setStatusMessage({
         type: 'success',
-        text: `✓ Added ${addedCount} entry/entries to your ledger according to transaction dates!`,
+        text: `✓ Added ${addedCount} entry/entries to ledger & marked message(s) as processed!`,
       });
 
       setTimeout(() => {

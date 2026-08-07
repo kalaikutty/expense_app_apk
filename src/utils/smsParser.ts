@@ -9,6 +9,8 @@ export interface ParsedSmsEntry {
   referenceNo?: string;
   selected: boolean;
   bankName?: string;
+  smsHash?: string;
+  rawSmsId?: string;
 }
 
 export const CATEGORIES = [

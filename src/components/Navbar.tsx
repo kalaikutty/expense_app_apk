@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileSpreadsheet, Download, SlidersHorizontal, LogIn, User, Moon, Sun, MessageSquare, Smartphone, Monitor } from 'lucide-react';
+import { FileSpreadsheet, Download, SlidersHorizontal, User, Moon, Sun, MessageSquare, Smartphone, Monitor } from 'lucide-react';
 
 interface NavbarProps {
   isFirestoreConnected: boolean;
@@ -59,68 +59,31 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Action Icons Bar */}
           <div className="flex items-center space-x-2 sm:space-x-3">
-            {/* Dedicated SMS Sync Trigger Button (Enabled in APK, Disabled in Web) */}
-            {onOpenSmsModal && (
+            {/* Logged in User Name Chip Pill */}
+            {currentUser && usernameLabel && (
+              <button
+                onClick={onOpenDrawer}
+                className="flex items-center space-x-2 px-3.5 py-1.5 rounded-full border bg-slate-800/90 hover:bg-slate-800 border-slate-700/80 text-xs sm:text-sm font-semibold text-slate-100 shadow-sm transition cursor-pointer active:scale-95"
+                title="View Profile / Options"
+              >
+                <User className="w-4 h-4 text-indigo-400 shrink-0" />
+                <span className="max-w-[140px] sm:max-w-[180px] truncate">{usernameLabel}</span>
+              </button>
+            )}
+
+            {/* Dedicated SMS Sync Trigger Button (Shown ONLY in Native APK when logged in) */}
+            {currentUser && isNativeApk && onOpenSmsModal && (
               <button
                 onClick={onOpenSmsModal}
-                disabled={!isNativeApk}
-                className={`p-2 sm:px-3 sm:py-2 flex items-center space-x-1.5 font-bold rounded-xl border transition active:scale-95 ${
-                  isNativeApk
-                    ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-400/40 shadow-md shadow-amber-500/20 cursor-pointer animate-pulse'
-                    : 'bg-slate-800 text-slate-500 border-slate-700 opacity-60 cursor-not-allowed'
-                }`}
-                title={
-                  isNativeApk
-                    ? 'Scan & Parse Bank SMS (Android APK)'
-                    : 'SMS Sync trigger (Requires Android APK)'
-                }
+                className="p-2 sm:px-3 sm:py-2 flex items-center space-x-1.5 font-bold rounded-xl border transition active:scale-95 bg-amber-500 hover:bg-amber-600 text-white border-amber-400/40 shadow-md shadow-amber-500/20 cursor-pointer animate-pulse"
+                title="Scan & Parse Bank SMS (Android APK)"
               >
-                <MessageSquare className={`w-5 h-5 sm:w-4 sm:h-4 ${isNativeApk ? 'text-white fill-white' : 'text-slate-500'}`} />
-                <span className="hidden sm:inline text-xs">
-                  {isNativeApk ? 'Sync Bank SMS' : 'SMS Sync (APK Only)'}
-                </span>
+                <MessageSquare className="w-5 h-5 sm:w-4 sm:h-4 text-white fill-white" />
+                <span className="hidden sm:inline text-xs">Sync Bank SMS</span>
               </button>
             )}
 
-            {/* User Chip if Logged in */}
-            {currentUser ? (
-              <div className="hidden md:flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border text-xs bg-slate-800/80 border-slate-700/70">
-                <User className="w-3.5 h-3.5 text-indigo-400" />
-                <span className="font-semibold max-w-[120px] truncate text-indigo-200">
-                  {usernameLabel}
-                </span>
-              </div>
-            ) : (
-              <button
-                onClick={onOpenAuthModal}
-                className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3 py-2 rounded-xl shadow-md transition cursor-pointer"
-              >
-                <LogIn className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Login</span>
-              </button>
-            )}
-
-            {/* Excel Sheet Interactive View Button */}
-            <button
-              onClick={onOpenExcelModal}
-              className="p-2 sm:px-3 sm:py-2 flex items-center space-x-1.5 rounded-xl border transition active:scale-95 cursor-pointer bg-slate-800 hover:bg-slate-700 text-emerald-400 border-slate-700"
-              title="Open Excel Sheet View"
-            >
-              <FileSpreadsheet className="w-5 h-5 sm:w-4 sm:h-4 text-emerald-400" />
-              <span className="hidden lg:inline text-xs font-semibold">Excel Sheet</span>
-            </button>
-
-            {/* Download Icon (Install Standalone App & APK) */}
-            <button
-              onClick={onOpenInstallModal}
-              className="p-2 sm:px-3 sm:py-2 flex items-center space-x-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl border border-indigo-500/40 shadow-md shadow-indigo-600/20 transition active:scale-95 cursor-pointer"
-              title="Install App & Download Android APK"
-            >
-              <Download className="w-5 h-5 sm:w-4 sm:h-4" />
-              <span className="hidden lg:inline text-xs">Install / APK</span>
-            </button>
-
-            {/* Options Icon (Opens Right Sidebar Drawer) */}
+            {/* Options Icon (Opens Right Sidebar Drawer - Always Present) */}
             <button
               onClick={onOpenDrawer}
               className="p-2.5 rounded-xl border transition active:scale-95 flex items-center justify-center relative shadow-sm cursor-pointer bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-200 border-slate-700"

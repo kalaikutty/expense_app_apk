@@ -31,6 +31,7 @@ interface UserDrawerProps {
   onOpenAuthModal: () => void;
   onOpenExcelModal: () => void;
   onOpenSmsModal?: () => void;
+  onOpenInstallModal?: () => void;
   isNativeApk?: boolean;
 }
 
@@ -44,6 +45,7 @@ export const UserDrawer: React.FC<UserDrawerProps> = ({
   onOpenAuthModal,
   onOpenExcelModal,
   onOpenSmsModal,
+  onOpenInstallModal,
   isNativeApk = false,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -257,31 +259,35 @@ export const UserDrawer: React.FC<UserDrawerProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  if (isNativeApk) {
+                  if (isNativeApk && currentUser) {
                     onClose();
                     onOpenSmsModal();
                   }
                 }}
-                disabled={!isNativeApk}
+                disabled={!isNativeApk || !currentUser}
                 className={`w-full flex items-center justify-between p-3.5 rounded-2xl border transition ${
-                  isNativeApk
+                  isNativeApk && currentUser
                     ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 border-amber-500/30 cursor-pointer active:scale-[0.98]'
                     : 'bg-slate-800/40 text-slate-500 border-slate-700/50 opacity-60 cursor-not-allowed'
                 }`}
               >
                 <div className="flex items-center space-x-3">
-                  <div className={`p-2 rounded-xl ${isNativeApk ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-700/50 text-slate-500'}`}>
+                  <div className={`p-2 rounded-xl ${isNativeApk && currentUser ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-700/50 text-slate-500'}`}>
                     <MessageSquare className="w-4 h-4" />
                   </div>
                   <div className="text-left">
-                    <p className={`text-sm font-bold flex items-center gap-1.5 ${isNativeApk ? 'text-amber-200' : 'text-slate-400'}`}>
+                    <p className={`text-sm font-bold flex items-center gap-1.5 ${isNativeApk && currentUser ? 'text-amber-200' : 'text-slate-400'}`}>
                       <span>Sync Bank SMS</span>
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded uppercase font-extrabold ${isNativeApk ? 'bg-amber-400/20 text-amber-300' : 'bg-slate-700 text-slate-500'}`}>
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded uppercase font-extrabold ${isNativeApk && currentUser ? 'bg-amber-400/20 text-amber-300' : 'bg-slate-700 text-slate-500'}`}>
                         {isNativeApk ? 'APK' : 'APK Only'}
                       </span>
                     </p>
-                    <p className={`text-xs ${isNativeApk ? 'text-amber-300/80' : 'text-slate-500'}`}>
-                      {isNativeApk ? 'Scan & auto-import bank SMS entries' : 'SMS trigger disabled on Web'}
+                    <p className={`text-xs ${isNativeApk && currentUser ? 'text-amber-300/80' : 'text-slate-500'}`}>
+                      {!currentUser
+                        ? 'Login required to sync bank SMS'
+                        : isNativeApk
+                        ? 'Scan & auto-import bank SMS entries'
+                        : 'SMS trigger disabled on Web'}
                     </p>
                   </div>
                 </div>
@@ -344,6 +350,28 @@ export const UserDrawer: React.FC<UserDrawerProps> = ({
                 </div>
               </div>
             </button>
+
+            {/* 4. Install App & Download APK */}
+            {onOpenInstallModal && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenInstallModal();
+                }}
+                className="w-full flex items-center justify-between p-3.5 bg-indigo-600/15 hover:bg-indigo-600/25 text-indigo-200 rounded-2xl border border-indigo-500/30 transition active:scale-[0.98]"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-300">
+                    <Download className="w-4 h-4" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-bold text-indigo-200">Download APK / Install App</p>
+                    <p className="text-xs text-indigo-300/80">Get standalone Android APK build</p>
+                  </div>
+                </div>
+              </button>
+            )}
 
             {/* 4. Logout */}
             {currentUser && (
