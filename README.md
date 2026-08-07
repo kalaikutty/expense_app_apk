@@ -13,7 +13,7 @@ This repo now includes a real Capacitor Android wrapper and CI automation that b
 ## Run web app locally
 
 1. Install dependencies:
-	`npm install`
+	`npm install --legacy-peer-deps`
 2. Start dev server:
 	`npm run dev`
 

@@ -61,7 +61,17 @@ jobs:
         with:
           name: expense_tracker_b${{ github.run_number }}
           path: release/expense_tracker_b${{ github.run_number }}.apk
-
+            
+      - name: Remove stale APK assets from previous builds
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view apk-latest --repo ${{ github.repository }} --json assets \
+            --jq '.assets[].name' 2>/dev/null | while read -r asset; do
+            gh release delete-asset apk-latest "$asset" --repo ${{ github.repository }} -y || true
+          done
+        continue-on-error: true
+        
       - name: Publish latest APK release
         uses: softprops/action-gh-release@v2
         with:
