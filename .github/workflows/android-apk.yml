@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout (Shallow)
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
@@ -23,34 +23,32 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
           cache: npm
 
       - name: Install dependencies
-        run: npm install --prefer-offline --no-audit --no-fund
+        run: npm install --no-audit --no-fund
 
       - name: Build web app
         run: npm run build
 
-      - name: Setup Java
+      - name: Setup Java JDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: '17'
 
-      - name: Setup Gradle Cache
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-home-cache-cleanup: true
 
       - name: Sync Capacitor Android
         run: npx cap sync android
 
-      - name: Fast Build Debug APK
+      - name: Build Debug APK
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --parallel --build-cache --configure-on-demand -x lint -x test -x lintVitalRelease -Dorg.gradle.jvmargs="-Xmx3072m -XX:MaxMetaspaceSize=512m -XX:+UseParallelGC"
+          ./gradlew assembleDebug --no-daemon
 
       - name: Prepare APK artifact
         run: |
@@ -62,7 +60,6 @@ jobs:
         with:
           name: expense-tracker-debug-apk
           path: release/expense-tracker-debug.apk
-          compression-level: 0
 
       - name: Publish latest APK release
         uses: softprops/action-gh-release@v2
@@ -75,4 +72,5 @@ jobs:
           body: |
             Auto-generated from commit ${{ github.sha }}.
             Download this APK for the latest wrapped web app build.
+
 
