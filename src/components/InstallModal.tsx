@@ -14,6 +14,7 @@ interface ApkBuildStatus {
   lastRunHtmlUrl?: string;
   lastRunAt?: string;
   releasePublishedAt?: string;
+  runNumber?: number;
 }
 
 export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) => {
@@ -128,13 +129,13 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
 
     try {
       let workflowResp = await fetch(
-        `https://api.github.com/repos/${activeRepo}/actions/workflows/android-apk.yml/runs?per_page=1`,
+        `https://api.github.com/repos/${activeRepo}/actions/workflows/android-apk.yml/runs?per_page=5`,
         { headers }
       ).catch(() => null);
 
       if (!workflowResp || !workflowResp.ok) {
         const fallbackRunsResp = await fetch(
-          `https://api.github.com/repos/${activeRepo}/actions/runs?per_page=1`,
+          `https://api.github.com/repos/${activeRepo}/actions/runs?per_page=5`,
           { headers }
         ).catch(() => null);
         if (fallbackRunsResp && fallbackRunsResp.ok) {
@@ -145,6 +146,7 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
       let lastRun: any = null;
       let state: BuildState = 'unknown';
       let message = '';
+      let runNumber: number | undefined;
 
       if (!workflowResp || !workflowResp.ok) {
         if (workflowResp?.status === 404) {
@@ -156,7 +158,10 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
         }
       } else {
         const workflowData = await workflowResp.json();
-        lastRun = workflowData.workflow_runs?.[0];
+        const runs = workflowData.workflow_runs || [];
+        lastRun = runs[0];
+        const latestSuccessRun = runs.find((r: any) => r.conclusion === 'success');
+        runNumber = (latestSuccessRun || lastRun)?.run_number;
 
         if (!lastRun) {
           message = `No APK build runs recorded yet for "${activeRepo}". Click "Build Fresh APK" to build.`;
@@ -181,12 +186,23 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
       if (releaseResp && releaseResp.ok) {
         const releaseData = await releaseResp.json();
         releasePublishedAt = releaseData.published_at || releaseData.created_at;
-        const apkAsset = (releaseData.assets || []).find((asset: any) =>
+        const assets: any[] = releaseData.assets || [];
+        // Look for expense_tracker_b<runNumber>.apk first, or any .apk asset
+        const matchingAsset = assets.find((asset: any) =>
+          typeof asset.name === 'string' &&
+          runNumber &&
+          asset.name.includes(`_${runNumber}.apk`)
+        ) || assets.find((asset: any) =>
           typeof asset.name === 'string' && asset.name.toLowerCase().endsWith('.apk')
         );
-        if (apkAsset?.browser_download_url) {
-          setResolvedApkUrl(apkAsset.browser_download_url);
+
+        if (matchingAsset?.browser_download_url) {
+          setResolvedApkUrl(matchingAsset.browser_download_url);
+        } else if (runNumber) {
+          setResolvedApkUrl(`https://github.com/${activeRepo}/releases/download/apk-latest/expense_tracker_b${runNumber}.apk`);
         }
+      } else if (runNumber) {
+        setResolvedApkUrl(`https://github.com/${activeRepo}/releases/download/apk-latest/expense_tracker_b${runNumber}.apk`);
       }
 
       setBuildStatus({
@@ -195,6 +211,7 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
         lastRunHtmlUrl: lastRun?.html_url || `https://github.com/${activeRepo}/actions/workflows/android-apk.yml`,
         lastRunAt: lastRun?.updated_at || lastRun?.created_at,
         releasePublishedAt,
+        runNumber,
       });
     } catch (error) {
       console.error('Failed to fetch APK build status:', error);
@@ -265,14 +282,18 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
 
   const handleDownloadApk = () => {
     setIsDownloadingApk(true);
-    setApkStatus(`✓ Initiating APK download from https://github.com/${cleanRepo}...`);
+    const runNum = buildStatus.runNumber ? `_b${buildStatus.runNumber}` : '';
+    const targetUrl =
+      resolvedApkUrl ||
+      `https://github.com/${cleanRepo}/releases/download/apk-latest/expense_tracker${runNum}.apk`;
 
-    const targetUrl = resolvedApkUrl || `https://github.com/${cleanRepo}/releases/download/apk-latest/expense-tracker-debug.apk`;
+    const fileName = targetUrl.split('/').pop() || `expense_tracker${runNum || '-debug'}.apk`;
+    setApkStatus(`✓ Initiating download for latest build artifact (${fileName})...`);
 
     try {
       const link = document.createElement('a');
       link.href = targetUrl;
-      link.setAttribute('download', 'expense-tracker-debug.apk');
+      link.setAttribute('download', fileName);
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
       document.body.appendChild(link);
@@ -283,7 +304,7 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
     }
 
     setTimeout(() => {
-      setApkStatus(`✓ APK download initiated for repository "${cleanRepo}".`);
+      setApkStatus(`✓ Download started: ${fileName}`);
       setIsDownloadingApk(false);
     }, 1200);
   };
@@ -571,16 +592,21 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
 
               <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">{buildStatus.message}</p>
 
-              {buildStatus.lastRunAt && (
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Last workflow update: {formatDateTime(buildStatus.lastRunAt)}
-                </p>
-              )}
-
-              {buildStatus.releasePublishedAt && (
-                <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
-                  ✓ APK Release Published: {formatDateTime(buildStatus.releasePublishedAt)}
-                </p>
+              {(buildStatus.releasePublishedAt || buildStatus.lastRunAt) && (
+                <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300">
+                  <p className="text-xs font-bold flex items-center gap-1.5">
+                    <CircleCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span>
+                      ✓ Latest Build APK Release:{' '}
+                      {formatDateTime(buildStatus.releasePublishedAt || buildStatus.lastRunAt)}
+                    </span>
+                  </p>
+                  {buildStatus.runNumber && (
+                    <p className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80 ml-5.5 mt-0.5 font-medium">
+                      Artifact Package: expense_tracker_b{buildStatus.runNumber}.apk
+                    </p>
+                  )}
+                </div>
               )}
             </div>
 

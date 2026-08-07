@@ -53,24 +53,27 @@ jobs:
       - name: Prepare APK artifact
         run: |
           mkdir -p release
+          cp android/app/build/outputs/apk/debug/app-debug.apk release/expense_tracker_b${{ github.run_number }}.apk
           cp android/app/build/outputs/apk/debug/app-debug.apk release/expense-tracker-debug.apk
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: expense-tracker-debug-apk
-          path: release/expense-tracker-debug.apk
+          name: expense_tracker_b${{ github.run_number }}
+          path: release/expense_tracker_b${{ github.run_number }}.apk
 
       - name: Publish latest APK release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-latest
-          name: Expense Tracker APK (Latest)
+          name: Expense Tracker APK (Build #${{ github.run_number }})
           prerelease: true
           overwrite_files: true
-          files: release/expense-tracker-debug.apk
+          files: |
+            release/expense_tracker_b${{ github.run_number }}.apk
+            release/expense-tracker-debug.apk
           body: |
-            Auto-generated from commit ${{ github.sha }}.
-            Download this APK for the latest wrapped web app build.
+            Latest Build APK Release: Auto-generated from Build #${{ github.run_number }} (commit ${{ github.sha }}).
+            Download expense_tracker_b${{ github.run_number }}.apk for the latest successful build artifact.
 
 
