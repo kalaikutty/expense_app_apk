@@ -61,44 +61,12 @@ export const SmsModal: React.FC<SmsModalProps> = ({
 
   const checkSmsPermissions = async () => {
     try {
-      const status = await MessageReader.checkPermissions();
-      if (status && status.messages === 'granted') {
+      const response = await MessageReader.getMessages({ limit: 1 });
+      if (response && Array.isArray(response.messages)) {
         setPermissionState('granted');
-      } else if (status && status.messages === 'denied') {
-        setPermissionState('denied');
-      } else {
-        setPermissionState('prompt');
       }
     } catch {
-      // Running on web or unhandled native bridge
       setPermissionState('prompt');
-    }
-  };
-
-  const handleRequestPermission = async () => {
-    setIsScanning(true);
-    setStatusMessage({ type: 'info', text: 'Prompting Android OS for READ_SMS permission...' });
-
-    try {
-      const res = await MessageReader.requestPermissions();
-      if (res && res.messages === 'granted') {
-        setPermissionState('granted');
-        setStatusMessage({ type: 'success', text: 'Android SMS Permission granted!' });
-        await handleScanDeviceSms();
-      } else {
-        setPermissionState('denied');
-        setStatusMessage({
-          type: 'error',
-          text: 'Permission denied. Please enable SMS permission in phone App Settings > Permissions > SMS.',
-        });
-        setIsScanning(false);
-      }
-    } catch (err: any) {
-      setIsScanning(false);
-      setStatusMessage({
-        type: 'error',
-        text: `Native permission error: ${err?.message || 'Requires running as native Android APK'}.`,
-      });
     }
   };
 
@@ -110,11 +78,13 @@ export const SmsModal: React.FC<SmsModalProps> = ({
       const response = await MessageReader.getMessages({ limit: 200 });
       const rawMessages = response?.messages || [];
 
+      setPermissionState('granted');
+
       if (rawMessages.length === 0) {
         setIsScanning(false);
         setStatusMessage({
           type: 'info',
-          text: 'Scanned SMS inbox, but no messages were found.',
+          text: 'Scanned inbox, but no SMS messages were found.',
         });
         return;
       }
@@ -146,15 +116,24 @@ export const SmsModal: React.FC<SmsModalProps> = ({
       } else {
         setStatusMessage({
           type: 'info',
-          text: `Scanned ${rawMessages.length} inbox SMS, but no debit/credit bank transactions were matched.`,
+          text: `Scanned ${rawMessages.length} SMS messages, but no debit/credit bank transactions were matched.`,
         });
       }
     } catch (err: any) {
       setIsScanning(false);
-      setStatusMessage({
-        type: 'error',
-        text: `Could not read device SMS inbox: ${err?.message || 'Native SMS bridge error'}. Ensure SMS permission is granted in Android settings.`,
-      });
+      const errText = err?.message || 'Native SMS bridge error';
+      if (errText.toLowerCase().includes('permission') || errText.toLowerCase().includes('denied')) {
+        setPermissionState('denied');
+        setStatusMessage({
+          type: 'error',
+          text: 'SMS permission denied. Please enable SMS permission in phone Settings > Apps > Expense Tracker > Permissions > SMS.',
+        });
+      } else {
+        setStatusMessage({
+          type: 'error',
+          text: `Device SMS scan error: ${errText}. Ensure app is running on Android device with SMS permission granted.`,
+        });
+      }
     }
   };
 
@@ -299,7 +278,7 @@ export const SmsModal: React.FC<SmsModalProps> = ({
             </div>
 
             <button
-              onClick={permissionState === 'granted' ? handleScanDeviceSms : handleRequestPermission}
+              onClick={handleScanDeviceSms}
               disabled={isScanning}
               className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
             >
