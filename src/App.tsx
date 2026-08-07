@@ -82,26 +82,8 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 }
 
 const CUSTOM_USER_STORAGE_KEY = 'expensetracker_active_user_session';
-const THEME_STORAGE_KEY = 'expensetracker_theme';
-type ThemeMode = 'light' | 'dark';
 
 export default function App() {
-  const [theme, setTheme] = useState<ThemeMode>(() => {
-    try {
-      const saved = localStorage.getItem(THEME_STORAGE_KEY);
-      if (saved === 'light' || saved === 'dark') {
-        return saved;
-      }
-    } catch {
-      // Ignore localStorage access issues and fallback to system preference.
-    }
-
-    if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      return 'dark';
-    }
-    return 'light';
-  });
-
   const [fbUser, setFbUser] = useState<FirebaseUser | null>(null);
   const [customUser, setCustomUser] = useState<CustomUser | null>(() => {
     try {
@@ -163,19 +145,6 @@ export default function App() {
     });
     return () => unsub();
   }, []);
-
-  // Keep the root element and localStorage in sync with selected theme.
-  useEffect(() => {
-    const root = document.documentElement;
-    root.classList.toggle('dark', theme === 'dark');
-    root.style.colorScheme = theme;
-
-    try {
-      localStorage.setItem(THEME_STORAGE_KEY, theme);
-    } catch {
-      // Ignore localStorage write issues.
-    }
-  }, [theme]);
 
   // Real-time Firestore snapshot listener
   useEffect(() => {
@@ -397,8 +366,6 @@ export default function App() {
         isFirestoreConnected={isConnected}
         onOpenInstallModal={() => setIsInstallModalOpen(true)}
         onOpenExcelModal={() => setIsExcelModalOpen(true)}
-        theme={theme}
-        onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
         currentUser={effectiveUser}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
         onOpenDrawer={() => setIsUserDrawerOpen(true)}
