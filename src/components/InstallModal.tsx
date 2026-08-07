@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Smartphone, X, Sparkles, ShieldCheck, RefreshCw, CircleCheck, CircleAlert, LoaderCircle, Settings, ExternalLink } from 'lucide-react';
+import { Download, Smartphone, X, Sparkles, ShieldCheck, RefreshCw, CircleCheck, CircleAlert, LoaderCircle, Settings } from 'lucide-react';
 
 interface InstallModalProps {
   isOpen: boolean;
@@ -20,7 +20,6 @@ interface ApkBuildStatus {
 export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) => {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstalled, setIsInstalled] = useState<boolean>(false);
-  const [isDownloadingApk, setIsDownloadingApk] = useState<boolean>(false);
   const [apkStatus, setApkStatus] = useState<string>('');
   const [showSettings, setShowSettings] = useState<boolean>(false);
 
@@ -64,14 +63,6 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
     }
   });
 
-  const [githubToken, setGithubToken] = useState<string>(() => {
-    try {
-      return localStorage.getItem('expensetracker_github_token') || '';
-    } catch {
-      return '';
-    }
-  });
-
   const [buildStatus, setBuildStatus] = useState<ApkBuildStatus>({
     state: 'idle',
     message: 'Build status not checked yet.',
@@ -79,23 +70,17 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
 
   const cleanRepo = sanitizeRepoSlug(repoSlug);
   const workflowUrl = `https://github.com/${cleanRepo}/actions/workflows/android-apk.yml`;
-  const actionsTabUrl = `https://github.com/${cleanRepo}/actions`;
-  const repoHomeUrl = `https://github.com/${cleanRepo}`;
-  const directReleaseApkUrl = `https://github.com/${cleanRepo}/releases/download/apk-latest/expense-tracker-debug.apk`;
 
-  const handleSaveRepoSettings = (newSlug: string, newToken: string) => {
+  const handleSaveRepoSettings = (newSlug: string) => {
     const validSlug = sanitizeRepoSlug(newSlug);
     setRepoSlug(validSlug);
-    const tokenVal = typeof newToken === 'string' ? newToken.trim() : '';
-    setGithubToken(tokenVal);
     try {
       localStorage.setItem('expensetracker_github_repo', validSlug);
-      localStorage.setItem('expensetracker_github_token', tokenVal);
     } catch {
       // ignore localStorage errors
     }
     setShowSettings(false);
-    fetchApkBuildStatus(validSlug, tokenVal);
+    fetchApkBuildStatus(validSlug);
   };
 
   const [resolvedApkUrl, setResolvedApkUrl] = useState<string>('');
@@ -109,9 +94,8 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
     }
   };
 
-  const fetchApkBuildStatus = async (overrideRepo?: unknown, overrideToken?: unknown) => {
+  const fetchApkBuildStatus = async (overrideRepo?: unknown) => {
     const repoStr = typeof overrideRepo === 'string' ? overrideRepo : undefined;
-    const tokenStr = typeof overrideToken === 'string' ? overrideToken : undefined;
     const activeRepo = sanitizeRepoSlug(repoStr || repoSlug);
     setBuildStatus({
       state: 'loading',
@@ -121,11 +105,6 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
     const headers: Record<string, string> = {
       Accept: 'application/vnd.github+json',
     };
-    const rawToken = tokenStr !== undefined ? tokenStr : githubToken;
-    const token = (typeof rawToken === 'string' ? rawToken.trim() : '') || localStorage.getItem('expensetracker_github_token') || '';
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
 
     try {
       let workflowResp = await fetch(
@@ -151,8 +130,6 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
       if (!workflowResp || !workflowResp.ok) {
         if (workflowResp?.status === 404) {
           message = `Repository "${activeRepo}" or workflow not found. Verify repository name in Repo Settings.`;
-        } else if (workflowResp?.status === 401 || workflowResp?.status === 403) {
-          message = `Access restricted for "${activeRepo}". Add a GitHub Personal Access Token in Repo Settings.`;
         } else {
           message = `Could not query GitHub Actions API for "${activeRepo}".`;
         }
@@ -164,7 +141,7 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
         runNumber = (latestSuccessRun || lastRun)?.run_number;
 
         if (!lastRun) {
-          message = `No APK build runs recorded yet for "${activeRepo}". Click "Build Fresh APK" to build.`;
+          message = `No APK build runs recorded yet for "${activeRepo}".`;
         } else if (lastRun.status !== 'completed') {
           state = 'in_progress';
           message = `Build #${lastRun.run_number || ''} is currently ${lastRun.status}. Auto-refreshing...`;
@@ -173,7 +150,7 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
           message = `Latest APK build #${lastRun.run_number || ''} succeeded! File is ready in GitHub Actions artifacts.`;
         } else {
           state = 'failed';
-          message = `Latest APK build failed (${lastRun.conclusion || 'failed'}). Click "Build Fresh APK" to re-trigger.`;
+          message = `Latest APK build failed (${lastRun.conclusion || 'failed'}). Check GitHub Actions workflow for details.`;
         }
       }
 
@@ -280,162 +257,13 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
     }
   };
 
-  const handleDownloadApk = () => {
-    setIsDownloadingApk(true);
-    const runNum = buildStatus.runNumber ? `_b${buildStatus.runNumber}` : '';
-    const targetUrl =
-      resolvedApkUrl ||
-      `https://github.com/${cleanRepo}/releases/download/apk-latest/expense_tracker${runNum}.apk`;
+  const runNumStr = buildStatus.runNumber ? `_b${buildStatus.runNumber}` : '';
+  const downloadTargetUrl =
+    resolvedApkUrl ||
+    `https://github.com/${cleanRepo}/releases/download/apk-latest/expense_tracker${runNumStr}.apk`;
 
-    const fileName = targetUrl.split('/').pop() || `expense_tracker${runNum || '-debug'}.apk`;
-    setApkStatus(`✓ Initiating download for latest build artifact (${fileName})...`);
-
-    try {
-      const link = document.createElement('a');
-      link.href = targetUrl;
-      link.setAttribute('download', fileName);
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch {
-      window.open(targetUrl, '_blank', 'noopener,noreferrer');
-    }
-
-    setTimeout(() => {
-      setApkStatus(`✓ Download started: ${fileName}`);
-      setIsDownloadingApk(false);
-    }, 1200);
-  };
-
-  const handleBuildFreshApk = async () => {
-    setApkStatus('Checking build status on GitHub Actions...');
-
-    let token = typeof githubToken === 'string' ? githubToken.trim() : '';
-    if (!token) {
-      try {
-        const storedToken = localStorage.getItem('expensetracker_github_token');
-        token = typeof storedToken === 'string' ? storedToken.trim() : '';
-      } catch {
-        // ignore
-      }
-    }
-
-    // 1. Check if a build is ALREADY running
-    try {
-      const headers: Record<string, string> = {};
-      if (token) headers.Authorization = `Bearer ${token}`;
-
-      const checkRunsResp = await fetch(
-        `https://api.github.com/repos/${cleanRepo}/actions/workflows/android-apk.yml/runs?per_page=3`,
-        { headers }
-      ).catch(() => null);
-
-      if (checkRunsResp && checkRunsResp.ok) {
-        const checkData = await checkRunsResp.json();
-        const latestRun = checkData.workflow_runs?.[0];
-
-        if (latestRun && latestRun.status !== 'completed') {
-          const runNum = latestRun.run_number ? `#${latestRun.run_number}` : '';
-          setApkStatus(`🚀 Fresh APK Build ${runNum} is ALREADY running on GitHub Actions! Takes ~2 minutes.`);
-          setBuildStatus({
-            state: 'in_progress',
-            message: `Build ${runNum} is currently ${latestRun.status}. Auto-refreshing status every 2 mins...`,
-            lastRunHtmlUrl: latestRun.html_url || workflowUrl,
-            lastRunAt: latestRun.updated_at || latestRun.created_at,
-          });
-          return;
-        }
-      }
-    } catch {
-      // ignore
-    }
-
-    if (token) {
-      try {
-        setApkStatus('Sending automated build trigger to GitHub...');
-        let targetBranch = 'main';
-
-        try {
-          const repoInfoResp = await fetch(`https://api.github.com/repos/${cleanRepo}`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              Accept: 'application/vnd.github+json',
-              'X-GitHub-Api-Version': '2022-11-28',
-            },
-          }).catch(() => null);
-
-          if (repoInfoResp && repoInfoResp.ok) {
-            const repoData = await repoInfoResp.json();
-            if (repoData.default_branch) {
-              targetBranch = repoData.default_branch;
-            }
-          }
-        } catch {
-          // fallback
-        }
-
-        let resp = await fetch(
-          `https://api.github.com/repos/${cleanRepo}/actions/workflows/android-apk.yml/dispatches`,
-          {
-            method: 'POST',
-            headers: {
-              Accept: 'application/vnd.github+json',
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-              'X-GitHub-Api-Version': '2022-11-28',
-            },
-            body: JSON.stringify({ ref: targetBranch }),
-          }
-        );
-
-        // If branch ref failed (e.g. 422), try alternative branch ('master' vs 'main')
-        if (resp.status === 422) {
-          const altBranch = targetBranch === 'main' ? 'master' : 'main';
-          resp = await fetch(
-            `https://api.github.com/repos/${cleanRepo}/actions/workflows/android-apk.yml/dispatches`,
-            {
-              method: 'POST',
-              headers: {
-                Accept: 'application/vnd.github+json',
-                Authorization: `Bearer ${token}`,
-                'Content-Type': 'application/json',
-                'X-GitHub-Api-Version': '2022-11-28',
-              },
-              body: JSON.stringify({ ref: altBranch }),
-            }
-          );
-        }
-
-        if (resp.status === 204 || resp.status === 202 || resp.ok) {
-          setApkStatus('🚀 Fresh APK Build launched on GitHub Actions! Takes ~2 minutes.');
-          setBuildStatus((prev) => ({
-            ...prev,
-            state: 'in_progress',
-            message: 'Automated APK build launched successfully on GitHub Actions (~2 min). Auto-refreshing...',
-          }));
-          setTimeout(fetchApkBuildStatus, 4000);
-          return; // SUCCESS - exit cleanly without opening external window!
-        } else if (resp.status === 401 || resp.status === 403) {
-          setApkStatus('⚠️ Token unauthorized or missing "workflow" scope. Check settings above.');
-          setShowSettings(true);
-          return;
-        } else {
-          setApkStatus(`⚠️ Could not trigger build via API (HTTP ${resp.status}). Opening GitHub workflow page...`);
-        }
-      } catch (err) {
-        console.warn('API dispatch error:', err);
-        setApkStatus('Could not dispatch via API. Opening GitHub Actions page...');
-      }
-    } else {
-      setShowSettings(true);
-      setApkStatus('💡 Save a GitHub Personal Access Token in settings above for 1-click automated builds.');
-    }
-
-    // Only open workflow page if token is missing or API dispatch failed
-    window.open(workflowUrl, '_blank', 'noopener,noreferrer');
-  };
+  const downloadFileName =
+    downloadTargetUrl.split('/').pop()?.split('?')[0] || `expense_tracker${runNumStr || '-debug'}.apk`;
 
   if (!isOpen) return null;
 
@@ -448,7 +276,7 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 p-2 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+          className="absolute top-5 right-5 p-2 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
@@ -504,8 +332,8 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
               </span>
               <button
                 onClick={() => setShowSettings(!showSettings)}
-                className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center space-x-1 underline"
-                title="Configure GitHub Repository or direct download URL"
+                className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center space-x-1 underline cursor-pointer"
+                title="Configure GitHub Repository"
               >
                 <Settings className="w-3.5 h-3.5" />
                 <span>Repo Settings</span>
@@ -519,8 +347,8 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
               </span>
               <button
                 onClick={() => setShowSettings(!showSettings)}
-                className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline flex items-center space-x-1"
-                title="Configure GitHub Repository or direct download URL"
+                className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline flex items-center space-x-1 cursor-pointer"
+                title="Configure GitHub Repository"
               >
                 <Settings className="w-3 h-3" />
                 <span>Change Repo</span>
@@ -542,23 +370,8 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
                     className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs"
                   />
                 </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                    GitHub Access Token for 1-click Automated Builds (Optional):
-                  </label>
-                  <input
-                    type="password"
-                    value={githubToken}
-                    onChange={(e) => setGithubToken(e.target.value)}
-                    placeholder="ghp_... or github_pat_..."
-                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-mono"
-                  />
-                  <p className="text-[10px] text-slate-500 mt-0.5">
-                    Optional: Save token to trigger builds in 1 click without leaving app.
-                  </p>
-                </div>
                 <button
-                  onClick={() => handleSaveRepoSettings(repoSlug, githubToken)}
+                  onClick={() => handleSaveRepoSettings(repoSlug)}
                   className="px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 cursor-pointer"
                 >
                   Save Settings
@@ -610,26 +423,21 @@ export const InstallModal: React.FC<InstallModalProps> = ({ isOpen, onClose }) =
               )}
             </div>
 
-            {/* Download & Build Options */}
+            {/* Download Option */}
             <div className="space-y-2.5">
-              {/* Option 1: Download Latest APK */}
-              <button
-                onClick={handleDownloadApk}
-                disabled={isDownloadingApk}
-                className="w-full flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-emerald-600/20 transition text-xs cursor-pointer disabled:opacity-50"
+              <a
+                href={downloadTargetUrl}
+                download={downloadFileName}
+                target="_self"
+                rel="noopener noreferrer"
+                onClick={() => {
+                  setApkStatus(`✓ Download started: ${downloadFileName}`);
+                }}
+                className="w-full flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-emerald-600/20 transition text-xs cursor-pointer"
               >
-                <Download className="w-4 h-4" />
-                <span>Download APK</span>
-              </button>
-
-              {/* Option 2: Build Fresh APK */}
-              <button
-                onClick={handleBuildFreshApk}
-                className="w-full flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-200 font-semibold py-3 px-4 rounded-xl border border-slate-700 transition text-xs cursor-pointer"
-              >
-                <Sparkles className="w-4 h-4 text-indigo-400" />
-                <span>Build Fresh APK (Fast ~1 Min Build)</span>
-              </button>
+                <Download className="w-4 h-4 shrink-0" />
+                <span>Download APK ({downloadFileName})</span>
+              </a>
             </div>
 
             {apkStatus && (
