@@ -23,6 +23,61 @@ export const CATEGORIES = [
   'Other',
 ];
 
+// Marketing/promotional phrasing that indicates the SMS is NOT an actual transaction
+const PROMOTIONAL_PATTERNS: RegExp[] = [
+  /\bclick here\b/i,
+  /\bapply now\b/i,
+  /\bsign[\s-]?up\b/i,
+  /\bsubscribe\b/i,
+  /\bunsubscribe\b/i,
+  /t&c(s)?\s*apply/i,
+  /terms\s*(and|&)\s*conditions\s*apply/i,
+  /\d+\s*%\s*off/i,
+  /\bflat\s*(rs\.?|inr|₹)?\s*[\d,]+\s*off/i,
+  /\bsale\b/i,
+  /\bdiscount(s|ed)?\b/i,
+  /\bcoupon\b/i,
+  /\bpromo\s*code\b/i,
+  /\buse code\b/i,
+  /offer\s*(valid|ends|expires)/i,
+  /\bexclusive\s*offer\b/i,
+  /\blimited\s*(period|time)\b/i,
+  /\bwin\b\s*(exciting|rs|inr|₹|a\b|prizes)/i,
+  /\bwinner\b/i,
+  /lucky\s*draw/i,
+  /\blottery\b/i,
+  /\bprize(s)?\b/i,
+  /congratulations,?\s*you/i,
+  /pre[- ]?approved/i,
+  /loan\s*(up\s*to|offer|starting|available)/i,
+  /interest\s*rate\s*(as\s*low|starting)/i,
+  /emi\s*(option|starting|available)/i,
+  /insurance\s*plan/i,
+  /\bshop now\b/i,
+  /\bbook now\b/i,
+  /\bbuy now\b/i,
+  /\binstall now\b/i,
+  /refer\s*(and|&)\s*earn/i,
+  /new\s*user\s*offer/i,
+  /download\s*(the|our)?\s*app/i,
+  /\brate us\b/i,
+  /give\s*feedback/i,
+  /\bsurvey\b/i,
+  /https?:\/\//i,
+  /\bwww\./i,
+  /bit\.ly/i,
+  /\bhurry\b/i,
+  /valid\s*(till|until)\b/i,
+  /best\s*price/i,
+  /mega\s*sale/i,
+  /festival\s*offer/i,
+  /season\s*sale/i,
+  /cashback\s*(up\s*to|upto|on your|of\s*upto|worth)/i,
+  /get\s*(up\s*to\s*)?(rs\.?|inr|₹)?\s*[\d,]*\s*cashback/i,
+  /earn\s*(rewards?|points)/i,
+  /gift\s*(card|voucher)/i,
+];
+
 /**
   Parse a single bank SMS message string into structured transaction data.
  */
@@ -31,6 +86,11 @@ export function parseBankSms(smsText: string, defaultDate: string = new Date().t
 
   const text = smsText.trim();
   if (text.length < 10) return null;
+
+  // Reject promotional/marketing SMS before attempting to treat it as a transaction
+  if (PROMOTIONAL_PATTERNS.some((re) => re.test(text))) {
+    return null;
+  }
 
   const lowerText = text.toLowerCase();
 
@@ -41,6 +101,11 @@ export function parseBankSms(smsText: string, defaultDate: string = new Date().t
 
   const hasCredit = creditKeywords.some((k) => lowerText.includes(k));
   const hasDebit = debitKeywords.some((k) => lowerText.includes(k));
+
+  // A genuine transaction SMS must explicitly state a debit or credit action
+  if (!hasCredit && !hasDebit) {
+    return null;
+  }
 
   if (hasCredit && !hasDebit) {
     type = 'CREDIT';

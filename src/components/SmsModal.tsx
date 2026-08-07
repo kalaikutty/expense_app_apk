@@ -15,6 +15,7 @@ import {
   ArrowDownLeft,
   ChevronDown,
   ChevronUp,
+  Trash2,
 } from 'lucide-react';
 import { MessageReader } from '@solimanware/capacitor-sms-reader';
 import {
@@ -146,6 +147,16 @@ export const SmsModal: React.FC<SmsModalProps> = ({
   const handleToggleSelectAll = () => {
     const allSelected = parsedEntries.every((e) => e.selected);
     setParsedEntries((prev) => prev.map((item) => ({ ...item, selected: !allSelected })));
+  };
+
+  const handleRemoveEntry = (id: string) => {
+    setParsedEntries((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const handleClearAllParsed = () => {
+    setParsedEntries([]);
+    setExpandedSmsId(null);
+    setStatusMessage({ type: 'info', text: 'Cleared all parsed SMS entries from preview.' });
   };
 
   const handleUpdateEntryField = (id: string, field: keyof ParsedSmsEntry, value: any) => {
@@ -312,9 +323,18 @@ export const SmsModal: React.FC<SmsModalProps> = ({
                     </span>
                   </button>
                 </div>
-                <span className="text-xs text-slate-500 font-medium">
-                  Verify & edit before adding
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-500 font-medium">
+                    Verify & edit before adding
+                  </span>
+                  <button
+                    onClick={handleClearAllParsed}
+                    className="flex items-center space-x-1 text-xs font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Clear All</span>
+                  </button>
+                </div>
               </div>
 
               {/* List of Formatted Entry Cards */}
@@ -374,6 +394,13 @@ export const SmsModal: React.FC<SmsModalProps> = ({
                                   {isCredit ? '+' : '-'} ₹{item.amount.toLocaleString('en-IN')}
                                 </span>
                               </span>
+                              <button
+                                onClick={() => handleRemoveEntry(item.id)}
+                                className="text-slate-400 hover:text-rose-600 cursor-pointer"
+                                title="Remove this entry from preview"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>                              
                             </div>
                           </div>
 
