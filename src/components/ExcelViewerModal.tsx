@@ -346,7 +346,10 @@ export const ExcelViewerModal: React.FC<ExcelViewerModalProps> = ({
         </div>
 
         {/* Interactive Excel Grid Table - Mobile Scroll Container */}
-        <div className="flex-1 overflow-x-auto overflow-y-auto p-2 sm:p-4 bg-slate-100 custom-scrollbar touch-pan-x touch-pan-y">
+        <div
+          className="flex-1 overflow-x-auto overflow-y-auto p-2 sm:p-4 bg-slate-100 custom-scrollbar touch-pan-x touch-pan-y"
+          style={{ transform: 'translateZ(0)', WebkitOverflowScrolling: 'touch' }}
+        >
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden min-w-[940px]">
             <table className="w-full text-left border-collapse text-xs font-sans min-w-[940px]">
               <thead className="sticky top-0 z-10 shadow-xs">
@@ -360,7 +363,7 @@ export const ExcelViewerModal: React.FC<ExcelViewerModalProps> = ({
                   <th className="py-3 px-3 min-w-[130px]">Type</th>
                   <th className="py-3 px-3 min-w-[120px]">Amount (₹)</th>
                   <th className="py-3 px-3 min-w-[200px]">Note</th>
-                  <th className="py-3 px-3 text-center w-16">Action</th>
+                  <th className="py-3 px-3 text-center w-16 sticky right-0 z-20 bg-slate-900 border-l border-slate-800">Action</th>
                 </tr>
               </thead>
 
@@ -460,7 +463,7 @@ export const ExcelViewerModal: React.FC<ExcelViewerModalProps> = ({
                       </td>
 
                       {/* Delete Action */}
-                      <td className="py-1 px-2 text-center">
+                      <td className="py-1 px-2 text-center sticky right-0 z-10 bg-white border-l border-slate-200">
                         <button
                           onClick={() => handleDeleteRow(idx)}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
